@@ -218,13 +218,13 @@ class ImageCombiner {
                     copyright: rawCopyright
                 });
                 
-                // Prioritize Creator first, then Artist, then Copyright
-                if (rawCreator && rawCreator.trim()) {
-                    creator = this.cleanMetadataString(rawCreator);
-                    console.log(`Using Creator field for ${side}:`, creator);
-                } else if (rawByline && rawByline.trim()) {
+                // Prioritize By-line first, then Creator, then Artist, then Copyright
+                if (rawByline && rawByline.trim()) {
                     creator = this.cleanMetadataString(rawByline);
                     console.log(`Using By-line field for ${side}:`, creator);
+                } else if (rawCreator && rawCreator.trim()) {
+                    creator = this.cleanMetadataString(rawCreator);
+                    console.log(`Using Creator field for ${side}:`, creator);
                 } else if (rawIPTCByline && rawIPTCByline.trim()) {
                     creator = this.cleanMetadataString(rawIPTCByline);
                     console.log(`Using IPTC Byline field for ${side}:`, creator);
@@ -405,6 +405,11 @@ class ImageCombiner {
     parseIptcData(iptcData) {
         try {
             let offset = 0;
+            let byline = null;
+            let creator = null;
+            let copyright = null;
+            
+            console.log('🔍 Parsing IPTC data, length:', iptcData.length);
             
             while (offset < iptcData.length - 5) {
                 // Check for IPTC tag marker
@@ -415,11 +420,27 @@ class ImageCombiner {
                     
                     offset += 5;
                     
-                    // Check for By-line/Creator field (Record 2, Dataset 80)
-                    if (record === 0x02 && dataset === 0x50) {
-                        const creatorBytes = iptcData.slice(offset, offset + length);
-                        const creator = new TextDecoder('utf-8').decode(creatorBytes);
-                        return creator.trim();
+                    console.log(`Found IPTC tag: Record ${record}, Dataset ${dataset}, Length ${length}`);
+                    
+                    if (offset + length <= iptcData.length) {
+                        const fieldBytes = iptcData.slice(offset, offset + length);
+                        const fieldValue = new TextDecoder('utf-8').decode(fieldBytes).trim();
+                        
+                        // Check for By-line field (Record 2, Dataset 80) - PRIORITY
+                        if (record === 0x02 && dataset === 0x50) {
+                            byline = fieldValue;
+                            console.log('📝 Found By-line field:', byline);
+                        }
+                        // Check for Creator field (alternative)
+                        else if (record === 0x02 && dataset === 0x7A) { // Creator dataset
+                            creator = fieldValue;
+                            console.log('👤 Found Creator field:', creator);
+                        }
+                        // Check for Copyright field (Record 2, Dataset 116)
+                        else if (record === 0x02 && dataset === 0x74) {
+                            copyright = fieldValue;
+                            console.log('©️ Found Copyright field:', copyright);
+                        }
                     }
                     
                     offset += length;
@@ -428,9 +449,22 @@ class ImageCombiner {
                 }
             }
             
+            // Priority: By-line > Creator > Copyright
+            if (byline) {
+                console.log('✅ Using By-line field:', byline);
+                return byline;
+            } else if (creator) {
+                console.log('⚠️ No By-line, using Creator field:', creator);
+                return creator;
+            } else if (copyright) {
+                console.log('⚠️ No By-line or Creator, using Copyright field:', copyright);
+                return copyright;
+            }
+            
+            console.log('❌ No By-line, Creator, or Copyright fields found');
             return null;
         } catch (error) {
-            console.error('Error parsing IPTC data:', error);
+            console.error('💥 Error parsing IPTC data:', error);
             return null;
         }
     }
@@ -1185,31 +1219,31 @@ class ImageCombiner {
     }
     
     createIptcWithByline(creatorInfo) {
-        // Create IPTC-IIM data structure with Creator field (proper IPTC term)
+        // Create IPTC-IIM data structure with By-line field as primary
         
         // Ensure the creator info is properly encoded as UTF-8
         const creatorBytes = new TextEncoder().encode(creatorInfo);
         
-        // IPTC Creator tag: Record 2, Dataset 80 (0x50) - also known as Byline
-        const iptcEntry = new Uint8Array(5 + creatorBytes.length);
+        // IPTC By-line tag: Record 2, Dataset 80 (0x50) - PRIMARY FIELD
+        const bylineEntry = new Uint8Array(5 + creatorBytes.length);
         
-        iptcEntry[0] = 0x1C; // IPTC tag marker
-        iptcEntry[1] = 0x02; // Record 2 (Application Record)
-        iptcEntry[2] = 0x50; // Dataset 80 (Creator/Byline)
+        bylineEntry[0] = 0x1C; // IPTC tag marker
+        bylineEntry[1] = 0x02; // Record 2 (Application Record)
+        bylineEntry[2] = 0x50; // Dataset 80 (By-line) - ALWAYS write this field
         
         // Handle length encoding properly for IPTC
         if (creatorBytes.length < 32768) {
             // Standard length encoding (2 bytes)
-            iptcEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
-            iptcEntry[4] = creatorBytes.length & 0xFF; // Length low byte
-            iptcEntry.set(creatorBytes, 5); // Creator data
+            bylineEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
+            bylineEntry[4] = creatorBytes.length & 0xFF; // Length low byte
+            bylineEntry.set(creatorBytes, 5); // Creator data
         } else {
             // Extended length encoding would be needed for very long strings
             // For now, truncate if too long
             const truncatedBytes = creatorBytes.slice(0, 32767);
-            iptcEntry[3] = (truncatedBytes.length >> 8) & 0xFF;
-            iptcEntry[4] = truncatedBytes.length & 0xFF;
-            iptcEntry.set(truncatedBytes, 5);
+            bylineEntry[3] = (truncatedBytes.length >> 8) & 0xFF;
+            bylineEntry[4] = truncatedBytes.length & 0xFF;
+            bylineEntry.set(truncatedBytes, 5);
         }
         
         // Also add Software/Program tag (Record 2, Dataset 65)
@@ -1224,7 +1258,7 @@ class ImageCombiner {
         softwareEntry[4] = softwareBytes.length & 0xFF; // Length low byte
         softwareEntry.set(softwareBytes, 5); // Software data
         
-        // Add Copyright Notice tag (Record 2, Dataset 116) as well
+        // Add Copyright Notice tag (Record 2, Dataset 116) as secondary
         const copyrightBytes = new TextEncoder().encode(creatorInfo);
         const copyrightEntry = new Uint8Array(5 + copyrightBytes.length);
         
@@ -1235,18 +1269,18 @@ class ImageCombiner {
         copyrightEntry[4] = copyrightBytes.length & 0xFF; // Length low byte
         copyrightEntry.set(copyrightBytes, 5); // Copyright data
         
-        // Combine IPTC entries
-        const totalLength = iptcEntry.length + softwareEntry.length + copyrightEntry.length;
+        // Combine IPTC entries - By-line is primary
+        const totalLength = bylineEntry.length + softwareEntry.length + copyrightEntry.length;
         const iptcData = new Uint8Array(totalLength);
         let offset = 0;
         
-        iptcData.set(iptcEntry, offset);
-        offset += iptcEntry.length;
+        iptcData.set(bylineEntry, offset);
+        offset += bylineEntry.length;
         iptcData.set(softwareEntry, offset);
         offset += softwareEntry.length;
         iptcData.set(copyrightEntry, offset);
         
-        console.log('Created IPTC data for creator:', creatorInfo, 'Length:', creatorBytes.length);
+        console.log('📝 Created IPTC data with By-line field (Dataset 80):', creatorInfo, 'Length:', creatorBytes.length);
         
         return iptcData;
     }
