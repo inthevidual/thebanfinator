@@ -1127,12 +1127,23 @@ class ImageCombiner {
         // Draw only the images without any UI elements
         this.drawCanvasForExport(exportCtx);
         
+        // Generate filename with current date and time
+        const now = new Date();
+        const year = now.getFullYear().toString().slice(-2); // Last 2 digits of year
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const day = now.getDate().toString().padStart(2, '0');
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        
+        const filename = `TheBanfinator-${year}${month}${day}-${hours}${minutes}${seconds}.jpg`;
+        
         // Export as blob
         exportCanvas.toBlob((blob) => {
             if (authorInfo) {
-                this.embedIptcCreator(blob, authorInfo);
+                this.embedIptcCreator(blob, authorInfo, filename);
             } else {
-                this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+                this.downloadBlob(blob, filename);
             }
         }, 'image/jpeg', 1.0);
     }
@@ -1325,7 +1336,7 @@ class ImageCombiner {
         }
     }
     
-    embedIptcCreator(blob, creatorInfo) {
+    embedIptcCreator(blob, creatorInfo, filename = null) {
         try {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -1346,7 +1357,9 @@ class ImageCombiner {
                     
                     if (newJpegBuffer) {
                         const newBlob = new Blob([newJpegBuffer], { type: 'image/jpeg' });
-                        this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
+                        // Use provided filename or generate a new one
+                        const finalFilename = filename || this.generateFilename();
+                        this.downloadBlob(newBlob, finalFilename);
                         console.log('Comprehensive metadata embedded successfully. Creator:', creatorInfo);
                     } else {
                         throw new Error('Failed to create metadata');
@@ -1354,7 +1367,9 @@ class ImageCombiner {
                     
                 } catch (error) {
                     console.error('Failed to embed metadata:', error);
-                    this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+                    // Use provided filename or generate a new one
+                    const finalFilename = filename || this.generateFilename();
+                    this.downloadBlob(blob, finalFilename);
                     console.log('Downloaded without metadata due to error');
                 }
             };
@@ -1362,8 +1377,22 @@ class ImageCombiner {
             
         } catch (error) {
             console.error('Failed to process blob:', error);
-            this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+            // Use provided filename or generate a new one
+            const finalFilename = filename || this.generateFilename();
+            this.downloadBlob(blob, finalFilename);
         }
+    }
+    
+    generateFilename() {
+        const now = new Date();
+        const year = now.getFullYear().toString().slice(-2); // Last 2 digits of year
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const day = now.getDate().toString().padStart(2, '0');
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        
+        return `TheBanfinator-${year}${month}${day}-${hours}${minutes}${seconds}.jpg`;
     }
     
     downloadBlob(blob, filename) {
