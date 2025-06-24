@@ -177,37 +177,41 @@ class ImageCombiner {
     
     extractIPTC(file, side) {
         EXIF.getData(file, () => {
-            // Try different metadata fields with proper encoding handling
-            let author = '';
+            // Try different metadata fields with proper priority: Creator -> Artist/Author -> Copyright
+            let creator = '';
             
-            // Try to get raw metadata first
+            // Try to get raw metadata - prioritize Creator field
+            const rawCreator = EXIF.getTag(file, 'Creator');
             const rawArtist = EXIF.getTag(file, 'Artist');
             const rawAuthor = EXIF.getTag(file, 'Author'); 
             const rawCopyright = EXIF.getTag(file, 'Copyright');
             
             // Debug log the raw values
             console.log('Raw metadata extracted:', {
+                creator: rawCreator,
                 artist: rawArtist,
                 author: rawAuthor,
                 copyright: rawCopyright
             });
             
-            // Prioritize Author/Artist, then Copyright
-            if (rawArtist && rawArtist.trim()) {
-                author = this.cleanMetadataString(rawArtist);
+            // Prioritize Creator first, then Artist/Author, then Copyright
+            if (rawCreator && rawCreator.trim()) {
+                creator = this.cleanMetadataString(rawCreator);
+            } else if (rawArtist && rawArtist.trim()) {
+                creator = this.cleanMetadataString(rawArtist);
             } else if (rawAuthor && rawAuthor.trim()) {
-                author = this.cleanMetadataString(rawAuthor);
+                creator = this.cleanMetadataString(rawAuthor);
             } else if (rawCopyright && rawCopyright.trim()) {
-                author = this.cleanMetadataString(rawCopyright);
+                creator = this.cleanMetadataString(rawCopyright);
             }
             
             if (side === 'left') {
-                this.leftCopyright = author;
+                this.leftCopyright = creator;
             } else {
-                this.rightCopyright = author;
+                this.rightCopyright = creator;
             }
             
-            console.log(`${side} image metadata:`, author);
+            console.log(`${side} image creator:`, creator);
             this.mergeCopyright();
         });
     }
@@ -243,28 +247,36 @@ class ImageCombiner {
         let merged = '';
         
         if (this.leftCopyright && this.rightCopyright) {
-            // Check for common suffixes
-            const commonSuffixes = ['/AP', '/TT', '/SvD', '/Getty', '/Reuters'];
+            // Intelligent merging for news agency suffixes
+            const newsAgencies = ['/AP', '/TT', '/SvD', '/Reuters', '/Getty', '/AFP', '/DPA', '/ AP', '/ TT', '/ SvD', '/ Reuters', '/ Getty', '/ AFP', '/ DPA'];
+            
+            let leftCreator = this.leftCopyright;
+            let rightCreator = this.rightCopyright;
             let commonSuffix = '';
             
-            for (const suffix of commonSuffixes) {
-                if (this.leftCopyright.endsWith(suffix) && this.rightCopyright.endsWith(suffix)) {
-                    commonSuffix = suffix;
+            // Find common news agency suffix
+            for (const agency of newsAgencies) {
+                if (leftCreator.endsWith(agency) && rightCreator.endsWith(agency)) {
+                    commonSuffix = agency;
                     break;
                 }
             }
             
             if (commonSuffix) {
-                const leftWithoutSuffix = this.leftCopyright.replace(commonSuffix, '');
-                const rightWithoutSuffix = this.rightCopyright.replace(commonSuffix, '');
+                // Remove the common suffix from both, combine names, add suffix once
+                const leftWithoutSuffix = leftCreator.substring(0, leftCreator.length - commonSuffix.length);
+                const rightWithoutSuffix = rightCreator.substring(0, rightCreator.length - commonSuffix.length);
                 merged = `${leftWithoutSuffix}/${rightWithoutSuffix}${commonSuffix}`;
             } else {
-                merged = `${this.leftCopyright}/${this.rightCopyright}`;
+                // No common suffix, just combine with slash
+                merged = `${leftCreator}/${rightCreator}`;
             }
         } else {
+            // Only one image has creator info
             merged = this.leftCopyright || this.rightCopyright;
         }
         
+        console.log('Merged creator field:', merged);
         $('#copyrightField').val(merged);
     }
     
@@ -906,14 +918,15 @@ class ImageCombiner {
         // Export as blob
         exportCanvas.toBlob((blob) => {
             if (authorInfo) {
-                this.embedExifWithExifJs2(blob, authorInfo);
+                this.embedIptcCreator(blob, authorInfo);
             } else {
                 this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
             }
         }, 'image/jpeg', 0.8);
     }
     
-    embedExifWithExifJs2(blob, authorInfo) {
+    embedIptcCreator(blob, creatorInfo) {
+    embedIptcCreator(blob, creatorInfo) {
         try {
             // Convert blob to array buffer for manual IPTC injection
             const reader = new FileReader();
@@ -927,14 +940,14 @@ class ImageCombiner {
                         throw new Error('Not a valid JPEG file');
                     }
                     
-                    // Create IPTC data with Byline field
-                    const iptcData = this.createIptcWithByline(authorInfo);
+                    // Create IPTC data with Creator field
+                    const iptcData = this.createIptcWithByline(creatorInfo);
                     const newJpegBuffer = this.insertIptcIntoJpeg(arrayBuffer, iptcData);
                     
                     if (newJpegBuffer) {
                         const newBlob = new Blob([newJpegBuffer], { type: 'image/jpeg' });
                         this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
-                        console.log('IPTC Byline metadata embedded successfully. Author:', authorInfo);
+                        console.log('IPTC Creator metadata embedded successfully. Creator:', creatorInfo);
                     } else {
                         throw new Error('Failed to create IPTC data');
                     }
@@ -952,30 +965,31 @@ class ImageCombiner {
             this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
         }
     }
+    }
     
-    createIptcWithByline(authorInfo) {
-        // Create IPTC-IIM data structure with proper UTF-8 encoding
+    createIptcWithByline(creatorInfo) {
+        // Create IPTC-IIM data structure with Creator field (proper IPTC term)
         
-        // Ensure the author info is properly encoded as UTF-8
-        const authorBytes = new TextEncoder().encode(authorInfo);
+        // Ensure the creator info is properly encoded as UTF-8
+        const creatorBytes = new TextEncoder().encode(creatorInfo);
         
-        // IPTC Byline tag: Record 2, Dataset 80 (0x50)
-        const iptcEntry = new Uint8Array(5 + authorBytes.length);
+        // IPTC Creator tag: Record 2, Dataset 80 (0x50) - also known as Byline
+        const iptcEntry = new Uint8Array(5 + creatorBytes.length);
         
         iptcEntry[0] = 0x1C; // IPTC tag marker
         iptcEntry[1] = 0x02; // Record 2 (Application Record)
-        iptcEntry[2] = 0x50; // Dataset 80 (Byline/Author)
+        iptcEntry[2] = 0x50; // Dataset 80 (Creator/Byline)
         
         // Handle length encoding properly for IPTC
-        if (authorBytes.length < 32768) {
+        if (creatorBytes.length < 32768) {
             // Standard length encoding (2 bytes)
-            iptcEntry[3] = (authorBytes.length >> 8) & 0xFF; // Length high byte
-            iptcEntry[4] = authorBytes.length & 0xFF; // Length low byte
-            iptcEntry.set(authorBytes, 5); // Author data
+            iptcEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
+            iptcEntry[4] = creatorBytes.length & 0xFF; // Length low byte
+            iptcEntry.set(creatorBytes, 5); // Creator data
         } else {
             // Extended length encoding would be needed for very long strings
             // For now, truncate if too long
-            const truncatedBytes = authorBytes.slice(0, 32767);
+            const truncatedBytes = creatorBytes.slice(0, 32767);
             iptcEntry[3] = (truncatedBytes.length >> 8) & 0xFF;
             iptcEntry[4] = truncatedBytes.length & 0xFF;
             iptcEntry.set(truncatedBytes, 5);
@@ -994,7 +1008,7 @@ class ImageCombiner {
         softwareEntry.set(softwareBytes, 5); // Software data
         
         // Add Copyright Notice tag (Record 2, Dataset 116) as well
-        const copyrightBytes = new TextEncoder().encode(authorInfo);
+        const copyrightBytes = new TextEncoder().encode(creatorInfo);
         const copyrightEntry = new Uint8Array(5 + copyrightBytes.length);
         
         copyrightEntry[0] = 0x1C; // IPTC tag marker
@@ -1015,7 +1029,7 @@ class ImageCombiner {
         offset += softwareEntry.length;
         iptcData.set(copyrightEntry, offset);
         
-        console.log('Created IPTC data for:', authorInfo, 'Length:', authorBytes.length);
+        console.log('Created IPTC data for creator:', creatorInfo, 'Length:', creatorBytes.length);
         
         return iptcData;
     }
