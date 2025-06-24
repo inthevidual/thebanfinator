@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Banfinator - Professionell Bildkombinerare</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="banfinator-styles2.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- Logo Header -->
+            <div class="logo-header">
+                <div class="logo-container">
+                    <div class="logo-image">
+                        <img src="banf.svg" alt="The Banfinator Logo" class="logo-svg">
+                    </div>
+                    <div class="logo-text">
+                        <div class="logo-line-1">THE</div>
+                        <div class="logo-line-2">BANFINATOR</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="subtitle-bar">
+                <p>Dra och släpp JPG-bilder för att kombinera dem till en professionell layout</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="drop-zone" id="leftDropZone">
+                        <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                        <h5>Släpp Vänster Bild Här</h5>
+                        <p>JPG-format rekommenderas</p>
+                        <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" style="display: none;">
+                    </div>
+                    <div class="image-info" id="leftImageInfo" style="display: none;">
+                        <strong>Vänster Bild:</strong> <span id="leftImageName"></span><br>
+                        <small>Dimensioner: <span id="leftImageDimensions"></span></small>
+                    </div>
+                    <div class="control-sliders" id="leftControls" style="display: none;">
+                        <div class="slider-group">
+                            <label class="form-label">Skala: <span id="leftScaleValue">100%</span></label>
+                            <input type="range" class="form-range" id="leftScaleSlider" min="10" max="500" value="100">
+                        </div>
+                        <div class="slider-group">
+                            <label class="form-label">Positionskontroller</label>
+                            <div class="directional-controls">
+                                <button class="dir-btn dir-up" data-side="left" data-dir="up">↑</button>
+                                <button class="dir-btn dir-left" data-side="left" data-dir="left">←</button>
+                                <button class="dir-btn dir-center center" data-side="left" data-dir="center">⌂</button>
+                                <button class="dir-btn dir-right" data-side="left" data-dir="right">→</button>
+                                <button class="dir-btn dir-down" data-side="left" data-dir="down">↓</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="drop-zone" id="rightDropZone">
+                        <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                        <h5>Släpp Höger Bild Här</h5>
+                        <p>JPG-format rekommenderas</p>
+                        <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" style="display: none;">
+                    </div>
+                    <div class="image-info" id="rightImageInfo" style="display: none;">
+                        <strong>Höger Bild:</strong> <span id="rightImageName"></span><br>
+                        <small>Dimensioner: <span id="rightImageDimensions"></span></small>
+                    </div>
+                    <div class="control-sliders" id="rightControls" style="display: none;">
+                        <div class="slider-group">
+                            <label class="form-label">Skala: <span id="rightScaleValue">100%</span></label>
+                            <input type="range" class="form-range" id="rightScaleSlider" min="10" max="500" value="100">
+                        </div>
+                        <div class="slider-group">
+                            <label class="form-label">Positionskontroller</label>
+                            <div class="directional-controls">
+                                <button class="dir-btn dir-up" data-side="right" data-dir="up">↑</button>
+                                <button class="dir-btn dir-left" data-side="right" data-dir="left">←</button>
+                                <button class="dir-btn dir-center center" data-side="right" data-dir="center">⌂</button>
+                                <button class="dir-btn dir-right" data-side="right" data-dir="right">→</button>
+                                <button class="dir-btn dir-down" data-side="right" data-dir="down">↓</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="canvas-container">
+                <div class="canvas-wrapper">
+                    <canvas id="imageCanvas" width="3000" height="2000"></canvas>
+                </div>
+            </div>
+            
+            <div class="control-panel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label for="copyrightField" class="form-label">
+                                <i class="fas fa-copyright"></i> Upphovsrättsinformation
+                            </label>
+                            <input type="text" class="form-control" id="copyrightField" 
+                                   placeholder="Upphovsrättsinformation slås samman automatiskt från IPTC-data">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex flex-column h-100 justify-content-end">
+                            <button class="btn btn-custom btn-switch" id="switchBtn" disabled>
+                                <i class="fas fa-exchange-alt"></i> Växla Bilder
+                            </button>
+                            <button class="btn btn-custom btn-export" id="exportBtn" disabled>
+                                <i class="fas fa-download"></i> Exportera JPG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
