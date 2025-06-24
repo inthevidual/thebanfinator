@@ -23,13 +23,15 @@
                     </div>
                     <div class="logo-text">
                         <div class="logo-line-1">THE</div>
-                        <div class="logo-line-2">BANFINATOR v0.666</div>
+                        <div class="logo-line-2">BANFINATOR</div>
+                        <div class="version-info">v0.666</div>
+                        <div class="tagline">a passion project ❤️ © CP-Tjänst 2025</div>
                     </div>
                 </div>
             </div>
             
             <div class="subtitle-bar">
-                <p>Dra och släpp JPG-bilder för att kombinera dem till collage</p>
+                <p>Dra och släpp JPG-bilder för att kombinera dem till en professionell layout</p>
             </div>
             
             <div class="row">
@@ -37,7 +39,7 @@
                     <div class="drop-zone" id="leftDropZone">
                         <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
                         <h5>Släpp vänster bild här</h5>
-                        <p>JPG-format rekommenderas</p>
+                        <p>JPG-format</p>
                         <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" style="display: none;">
                     </div>
                     <div class="image-info" id="leftImageInfo" style="display: none;">
@@ -65,7 +67,7 @@
                     <div class="drop-zone" id="rightDropZone">
                         <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
                         <h5>Släpp höger bild här</h5>
-                        <p>JPG-format rekommenderas</p>
+                        <p>JPG-format</p>
                         <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" style="display: none;">
                     </div>
                     <div class="image-info" id="rightImageInfo" style="display: none;">
@@ -111,7 +113,7 @@
                     <div class="col-md-4">
                         <div class="d-flex flex-column h-100 justify-content-end">
                             <button class="btn btn-custom btn-switch" id="switchBtn" disabled>
-                                <i class="fas fa-exchange-alt"></i> Växla bilder
+                                <i class="fas fa-exchange-alt"></i> Byt plats
                             </button>
                             <button class="btn btn-custom btn-export" id="exportBtn" disabled>
                                 <i class="fas fa-download"></i> Exportera JPG
@@ -122,6 +124,13 @@
             </div>
         </div>
     </div>
+
+    <!-- Fixed Footer -->
+    <footer class="fixed-footer">
+        <div class="footer-content">
+            ❤️ & © CP-Tjänst/Jesper Sandström 2025
+        </div>
+    </footer>
 
     <script src="script.js"></script>
 </body>
