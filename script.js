@@ -1219,70 +1219,31 @@ class ImageCombiner {
     }
     
     createIptcWithByline(creatorInfo) {
-        // Create IPTC-IIM data structure with By-line field as primary
+        // Create IPTC-IIM data structure exactly like exiftool does
         
         // Ensure the creator info is properly encoded as UTF-8
         const creatorBytes = new TextEncoder().encode(creatorInfo);
         
-        // IPTC By-line tag: Record 2, Dataset 80 (0x50) - PRIMARY FIELD
+        // Create minimal IPTC structure with only By-line field
+        // This matches what exiftool creates for maximum compatibility
+        
+        // IPTC By-line tag: Record 2, Dataset 80 (0x50) - ONLY this field for compatibility
         const bylineEntry = new Uint8Array(5 + creatorBytes.length);
         
         bylineEntry[0] = 0x1C; // IPTC tag marker
         bylineEntry[1] = 0x02; // Record 2 (Application Record)
-        bylineEntry[2] = 0x50; // Dataset 80 (By-line) - ALWAYS write this field
+        bylineEntry[2] = 0x50; // Dataset 80 (By-line)
         
-        // Handle length encoding properly for IPTC
-        if (creatorBytes.length < 32768) {
-            // Standard length encoding (2 bytes)
-            bylineEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
-            bylineEntry[4] = creatorBytes.length & 0xFF; // Length low byte
-            bylineEntry.set(creatorBytes, 5); // Creator data
-        } else {
-            // Extended length encoding would be needed for very long strings
-            // For now, truncate if too long
-            const truncatedBytes = creatorBytes.slice(0, 32767);
-            bylineEntry[3] = (truncatedBytes.length >> 8) & 0xFF;
-            bylineEntry[4] = truncatedBytes.length & 0xFF;
-            bylineEntry.set(truncatedBytes, 5);
-        }
+        // IPTC uses big-endian length encoding (most significant byte first)
+        bylineEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
+        bylineEntry[4] = creatorBytes.length & 0xFF; // Length low byte
+        bylineEntry.set(creatorBytes, 5); // Creator data
         
-        // Also add Software/Program tag (Record 2, Dataset 65)
-        const softwareText = "The Banfinator";
-        const softwareBytes = new TextEncoder().encode(softwareText);
-        const softwareEntry = new Uint8Array(5 + softwareBytes.length);
+        // For maximum CMS compatibility, create ONLY the By-line field
+        // Additional fields can cause parsing issues in some CMS systems
+        console.log('📝 Created minimal IPTC data with By-line field only:', creatorInfo, 'Byte length:', creatorBytes.length);
         
-        softwareEntry[0] = 0x1C; // IPTC tag marker
-        softwareEntry[1] = 0x02; // Record 2 (Application Record)
-        softwareEntry[2] = 0x41; // Dataset 65 (Program/Software)
-        softwareEntry[3] = (softwareBytes.length >> 8) & 0xFF; // Length high byte
-        softwareEntry[4] = softwareBytes.length & 0xFF; // Length low byte
-        softwareEntry.set(softwareBytes, 5); // Software data
-        
-        // Add Copyright Notice tag (Record 2, Dataset 116) as secondary
-        const copyrightBytes = new TextEncoder().encode(creatorInfo);
-        const copyrightEntry = new Uint8Array(5 + copyrightBytes.length);
-        
-        copyrightEntry[0] = 0x1C; // IPTC tag marker
-        copyrightEntry[1] = 0x02; // Record 2 (Application Record)
-        copyrightEntry[2] = 0x74; // Dataset 116 (Copyright Notice)
-        copyrightEntry[3] = (copyrightBytes.length >> 8) & 0xFF; // Length high byte
-        copyrightEntry[4] = copyrightBytes.length & 0xFF; // Length low byte
-        copyrightEntry.set(copyrightBytes, 5); // Copyright data
-        
-        // Combine IPTC entries - By-line is primary
-        const totalLength = bylineEntry.length + softwareEntry.length + copyrightEntry.length;
-        const iptcData = new Uint8Array(totalLength);
-        let offset = 0;
-        
-        iptcData.set(bylineEntry, offset);
-        offset += bylineEntry.length;
-        iptcData.set(softwareEntry, offset);
-        offset += softwareEntry.length;
-        iptcData.set(copyrightEntry, offset);
-        
-        console.log('📝 Created IPTC data with By-line field (Dataset 80):', creatorInfo, 'Length:', creatorBytes.length);
-        
-        return iptcData;
+        return bylineEntry;
     }
     
     insertIptcIntoJpeg(jpegBuffer, iptcData) {
@@ -1292,38 +1253,52 @@ class ImageCombiner {
             // Find insertion point after SOI (0xFFD8)
             let insertPoint = 2;
             
-            // Look for existing APP13 marker (0xFFED) which contains IPTC data
+            // Look for existing APP13 marker (0xFFED) and remove it if present
             if (jpeg.length > 4 && jpeg[2] === 0xFF && jpeg[3] === 0xED) {
                 const app13Length = (jpeg[4] << 8) | jpeg[5];
                 insertPoint = 4 + app13Length;
+                console.log('🗑️ Removing existing APP13 segment, length:', app13Length);
             }
             
-            // Create Photoshop 3.0 8BIM resource for IPTC
-            // Format: "Photoshop 3.0\0" + 8BIM + Resource ID + Name + Data
+            // Create Photoshop 3.0 8BIM resource for IPTC - exactly like exiftool format
             const photoshopHeader = new TextEncoder().encode("Photoshop 3.0\0");
             const bimSignature = new Uint8Array([0x38, 0x42, 0x49, 0x4D]); // "8BIM"
             const resourceId = new Uint8Array([0x04, 0x04]); // 0x0404 = IPTC resource
-            const resourceName = new Uint8Array([0x00, 0x00]); // Empty name (2 bytes for length + padding)
             
-            // IPTC data length (4 bytes, big-endian)
+            // Resource name: empty (just length byte + padding for even alignment)
+            const resourceName = new Uint8Array([0x00, 0x00]); // Length 0 + padding
+            
+            // IPTC data length (4 bytes, big-endian) - this must be exact
             const dataLength = new Uint8Array(4);
             const dataView = new DataView(dataLength.buffer);
-            dataView.setUint32(0, iptcData.length, false); // Big-endian
+            dataView.setUint32(0, iptcData.length, false); // Big-endian, exact length
             
-            // Calculate total APP13 length
+            // Calculate total APP13 content length (excluding APP13 marker and length field)
             const app13ContentLength = photoshopHeader.length + bimSignature.length + 
                                      resourceId.length + resourceName.length + 
                                      dataLength.length + iptcData.length;
-            const app13Length = app13ContentLength + 2; // +2 for length field itself
             
-            // Create APP13 segment
+            // APP13 segment length includes the length field itself (2 bytes)
+            const app13SegmentLength = app13ContentLength + 2;
+            
+            // Create APP13 header
             const app13Header = new Uint8Array([
                 0xFF, 0xED, // APP13 marker
-                (app13Length >> 8) & 0xFF, // Length high byte
-                app13Length & 0xFF // Length low byte
+                (app13SegmentLength >> 8) & 0xFF, // Length high byte (big-endian)
+                app13SegmentLength & 0xFF // Length low byte
             ]);
             
-            // Combine all APP13 parts
+            console.log('📦 Creating APP13 segment:');
+            console.log('- Photoshop header:', photoshopHeader.length, 'bytes');
+            console.log('- 8BIM signature:', bimSignature.length, 'bytes');
+            console.log('- Resource ID:', resourceId.length, 'bytes');
+            console.log('- Resource name:', resourceName.length, 'bytes');
+            console.log('- Data length field:', dataLength.length, 'bytes');
+            console.log('- IPTC data:', iptcData.length, 'bytes');
+            console.log('- Total content:', app13ContentLength, 'bytes');
+            console.log('- Total segment:', app13SegmentLength, 'bytes');
+            
+            // Combine all APP13 parts in exact order
             const app13Data = new Uint8Array(app13Header.length + app13ContentLength);
             let offset = 0;
             
@@ -1336,21 +1311,22 @@ class ImageCombiner {
             app13Data.set(iptcData, offset);
             
             // Create new JPEG with IPTC
-            const newJpeg = new Uint8Array(jpeg.length + app13Data.length);
+            const newJpeg = new Uint8Array(jpeg.length - (insertPoint - 2) + app13Data.length);
             
             // Copy SOI
             newJpeg.set(jpeg.slice(0, 2), 0);
             
-            // Insert APP13 + IPTC
+            // Insert APP13 + IPTC immediately after SOI
             newJpeg.set(app13Data, 2);
             
-            // Copy rest of JPEG
+            // Copy rest of JPEG (skipping any existing APP13)
             newJpeg.set(jpeg.slice(insertPoint), 2 + app13Data.length);
             
+            console.log('✅ Successfully created JPEG with IPTC By-line data');
             return newJpeg;
             
         } catch (error) {
-            console.error('Failed to insert IPTC into JPEG:', error);
+            console.error('💥 Failed to insert IPTC into JPEG:', error);
             return null;
         }
     }
