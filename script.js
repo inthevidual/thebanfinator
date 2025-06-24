@@ -830,16 +830,13 @@ class ImageCombiner {
                 const dataUrl = e.target.result;
                 const jpeg = dataUrl.split(',')[1]; // Remove data:image/jpeg;base64, prefix
                 
-                // Create EXIF data
+                // Create EXIF data with only reliable fields
                 const exifObj = {
                     "0th": {
                         [piexif.ImageIFD.Artist]: authorInfo,
                         [piexif.ImageIFD.Copyright]: authorInfo,
                         [piexif.ImageIFD.Software]: "The Banfinator",
                         [piexif.ImageIFD.DateTime]: new Date().toISOString().replace('T', ' ').substr(0, 19)
-                    },
-                    "Exif": {
-                        [piexif.ExifIFD.UserComment]: piexif.helper.UserCommentEncode(authorInfo)
                     }
                 };
                 
