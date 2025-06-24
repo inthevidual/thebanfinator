@@ -1,4 +1,20 @@
-class ImageCombiner {
+loadImage(file, side) {
+        if (!file.type.match('image/jpeg') && !file.type.match('image/jpg')) {
+            alert('Vänligen välj en JPG-bildfil.');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                this.processImage(img, file, side);
+                this.extractIPTC(file, side);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }class ImageCombiner {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -1260,69 +1276,41 @@ class ImageCombiner {
                 console.log('🗑️ Removing existing APP13 segment, length:', app13Length);
             }
             
-            // Create Photoshop 3.0 8BIM resource for IPTC - exactly like exiftool format
-            const photoshopHeader = new TextEncoder().encode("Photoshop 3.0\0");
-            const bimSignature = new Uint8Array([0x38, 0x42, 0x49, 0x4D]); // "8BIM"
-            const resourceId = new Uint8Array([0x04, 0x04]); // 0x0404 = IPTC resource
-            
-            // Resource name: empty (just length byte + padding for even alignment)
-            const resourceName = new Uint8Array([0x00, 0x00]); // Length 0 + padding
-            
-            // IPTC data length (4 bytes, big-endian) - this must be exact
-            const dataLength = new Uint8Array(4);
-            const dataView = new DataView(dataLength.buffer);
-            dataView.setUint32(0, iptcData.length, false); // Big-endian, exact length
-            
-            // Calculate total APP13 content length (excluding APP13 marker and length field)
-            const app13ContentLength = photoshopHeader.length + bimSignature.length + 
-                                     resourceId.length + resourceName.length + 
-                                     dataLength.length + iptcData.length;
+            // Create APP13 segment with RAW IPTC data (no Photoshop wrapper)
+            // This matches what exiftool creates with -By-line= command
             
             // APP13 segment length includes the length field itself (2 bytes)
-            const app13SegmentLength = app13ContentLength + 2;
+            const app13SegmentLength = iptcData.length + 2;
             
-            // Create APP13 header
+            // Create APP13 header with raw IPTC data
             const app13Header = new Uint8Array([
                 0xFF, 0xED, // APP13 marker
                 (app13SegmentLength >> 8) & 0xFF, // Length high byte (big-endian)
                 app13SegmentLength & 0xFF // Length low byte
             ]);
             
-            console.log('📦 Creating APP13 segment:');
-            console.log('- Photoshop header:', photoshopHeader.length, 'bytes');
-            console.log('- 8BIM signature:', bimSignature.length, 'bytes');
-            console.log('- Resource ID:', resourceId.length, 'bytes');
-            console.log('- Resource name:', resourceName.length, 'bytes');
-            console.log('- Data length field:', dataLength.length, 'bytes');
+            console.log('📦 Creating RAW IPTC APP13 segment (exiftool style):');
             console.log('- IPTC data:', iptcData.length, 'bytes');
-            console.log('- Total content:', app13ContentLength, 'bytes');
             console.log('- Total segment:', app13SegmentLength, 'bytes');
             
-            // Combine all APP13 parts in exact order
-            const app13Data = new Uint8Array(app13Header.length + app13ContentLength);
-            let offset = 0;
+            // Combine APP13 header + raw IPTC data (no Photoshop container)
+            const app13Data = new Uint8Array(app13Header.length + iptcData.length);
+            app13Data.set(app13Header, 0);
+            app13Data.set(iptcData, app13Header.length);
             
-            app13Data.set(app13Header, offset); offset += app13Header.length;
-            app13Data.set(photoshopHeader, offset); offset += photoshopHeader.length;
-            app13Data.set(bimSignature, offset); offset += bimSignature.length;
-            app13Data.set(resourceId, offset); offset += resourceId.length;
-            app13Data.set(resourceName, offset); offset += resourceName.length;
-            app13Data.set(dataLength, offset); offset += dataLength.length;
-            app13Data.set(iptcData, offset);
-            
-            // Create new JPEG with IPTC
+            // Create new JPEG with raw IPTC
             const newJpeg = new Uint8Array(jpeg.length - (insertPoint - 2) + app13Data.length);
             
             // Copy SOI
             newJpeg.set(jpeg.slice(0, 2), 0);
             
-            // Insert APP13 + IPTC immediately after SOI
+            // Insert APP13 + raw IPTC immediately after SOI
             newJpeg.set(app13Data, 2);
             
             // Copy rest of JPEG (skipping any existing APP13)
             newJpeg.set(jpeg.slice(insertPoint), 2 + app13Data.length);
             
-            console.log('✅ Successfully created JPEG with IPTC By-line data');
+            console.log('✅ Successfully created JPEG with RAW IPTC By-line data (exiftool compatible)');
             return newJpeg;
             
         } catch (error) {
