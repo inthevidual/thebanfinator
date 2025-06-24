@@ -1,20 +1,4 @@
-loadImage(file, side); {
-        if (!file.type.match('image/jpeg') && !file.type.match('image/jpg')) {
-            alert('Vänligen välj en JPG-bildfil.');
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                this.processImage(img, file, side);
-                this.extractIPTC(file, side);
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }class ImageCombiner {
+class ImageCombiner {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -1196,7 +1180,7 @@ loadImage(file, side); {
     
     embedIptcCreator(blob, creatorInfo) {
         try {
-            // Convert blob to array buffer for manual EXIF injection
+            // Convert blob to array buffer for manual IPTC injection
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
@@ -1208,22 +1192,22 @@ loadImage(file, side); {
                         throw new Error('Not a valid JPEG file');
                     }
                     
-                    // Create EXIF data with Artist field instead of IPTC
-                    const exifData = this.createExifWithArtist(creatorInfo);
-                    const newJpegBuffer = this.insertExifIntoJpeg(arrayBuffer, exifData);
+                    // Create IPTC data with Creator field
+                    const iptcData = this.createIptcWithByline(creatorInfo);
+                    const newJpegBuffer = this.insertIptcIntoJpeg(arrayBuffer, iptcData);
                     
                     if (newJpegBuffer) {
                         const newBlob = new Blob([newJpegBuffer], { type: 'image/jpeg' });
                         this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
-                        console.log('EXIF Artist metadata embedded successfully. Creator:', creatorInfo);
+                        console.log('IPTC Creator metadata embedded successfully. Creator:', creatorInfo);
                     } else {
-                        throw new Error('Failed to create EXIF data');
+                        throw new Error('Failed to create IPTC data');
                     }
                     
                 } catch (error) {
-                    console.error('Failed to embed EXIF metadata:', error);
+                    console.error('Failed to embed IPTC metadata:', error);
                     this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
-                    console.log('Downloaded without EXIF metadata due to error');
+                    console.log('Downloaded without IPTC metadata due to error');
                 }
             };
             reader.readAsArrayBuffer(blob);
@@ -1234,103 +1218,115 @@ loadImage(file, side); {
         }
     }
     
-    createExifWithArtist(creatorInfo) {
-        // Create minimal EXIF structure with Artist field (what CMS systems usually read)
+    createIptcWithByline(creatorInfo) {
+        // Create IPTC-IIM data structure exactly like exiftool does
         
-        // EXIF header: "Exif\0\0"
-        const exifHeader = new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00]);
+        // Ensure the creator info is properly encoded as UTF-8
+        const creatorBytes = new TextEncoder().encode(creatorInfo);
         
-        // TIFF header (little endian)
-        const tiffHeader = new Uint8Array([
-            0x49, 0x49, // "II" - little endian
-            0x2A, 0x00, // TIFF magic number
-            0x08, 0x00, 0x00, 0x00 // Offset to first IFD
-        ]);
+        // Create minimal IPTC structure with only By-line field
+        // This matches what exiftool creates for maximum compatibility
         
-        // Create Artist field data
-        const artistBytes = new TextEncoder().encode(creatorInfo + '\0'); // null-terminated
-        const ifdEntryCount = new Uint8Array([0x01, 0x00]); // 1 entry
+        // IPTC By-line tag: Record 2, Dataset 80 (0x50) - ONLY this field for compatibility
+        const bylineEntry = new Uint8Array(5 + creatorBytes.length);
         
-        // Artist tag entry: tag(2) + type(2) + count(4) + value/offset(4) = 12 bytes
-        const artistTag = new Uint8Array(12);
-        const artistView = new DataView(artistTag.buffer);
-        artistView.setUint16(0, 0x013B, true); // Artist tag (315)
-        artistView.setUint16(2, 0x0002, true); // ASCII type
-        artistView.setUint32(4, artistBytes.length, true); // String length
+        bylineEntry[0] = 0x1C; // IPTC tag marker
+        bylineEntry[1] = 0x02; // Record 2 (Application Record)
+        bylineEntry[2] = 0x50; // Dataset 80 (By-line)
         
-        // Calculate offset for string data
-        const stringOffset = 8 + 2 + 12 + 4; // TIFF header + entry count + tag entry + next IFD offset
-        artistView.setUint32(8, stringOffset, true); // Offset to string
+        // IPTC uses big-endian length encoding (most significant byte first)
+        bylineEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
+        bylineEntry[4] = creatorBytes.length & 0xFF; // Length low byte
+        bylineEntry.set(creatorBytes, 5); // Creator data
         
-        // Next IFD offset (0 = no next IFD)
-        const nextIfdOffset = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
+        // For maximum CMS compatibility, create ONLY the By-line field
+        // Additional fields can cause parsing issues in some CMS systems
+        console.log('📝 Created minimal IPTC data with By-line field only:', creatorInfo, 'Byte length:', creatorBytes.length);
         
-        // Combine all parts
-        const totalLength = exifHeader.length + tiffHeader.length + ifdEntryCount.length + 
-                           artistTag.length + nextIfdOffset.length + artistBytes.length;
-        const exifData = new Uint8Array(totalLength);
-        
-        let offset = 0;
-        exifData.set(exifHeader, offset); offset += exifHeader.length;
-        exifData.set(tiffHeader, offset); offset += tiffHeader.length;
-        exifData.set(ifdEntryCount, offset); offset += ifdEntryCount.length;
-        exifData.set(artistTag, offset); offset += artistTag.length;
-        exifData.set(nextIfdOffset, offset); offset += nextIfdOffset.length;
-        exifData.set(artistBytes, offset);
-        
-        console.log('📝 Created EXIF data with Artist field:', creatorInfo);
-        
-        return exifData;
+        return bylineEntry;
     }
     
-    insertExifIntoJpeg(jpegBuffer, exifData) {
+    insertIptcIntoJpeg(jpegBuffer, iptcData) {
         try {
             const jpeg = new Uint8Array(jpegBuffer);
             
             // Find insertion point after SOI (0xFFD8)
             let insertPoint = 2;
             
-            // Look for existing APP1 marker (0xFFE1) and remove it if present
-            if (jpeg.length > 4 && jpeg[2] === 0xFF && jpeg[3] === 0xE1) {
-                const app1Length = (jpeg[4] << 8) | jpeg[5];
-                insertPoint = 4 + app1Length;
-                console.log('🗑️ Removing existing APP1 segment, length:', app1Length);
+            // Look for existing APP13 marker (0xFFED) and remove it if present
+            if (jpeg.length > 4 && jpeg[2] === 0xFF && jpeg[3] === 0xED) {
+                const app13Length = (jpeg[4] << 8) | jpeg[5];
+                insertPoint = 4 + app13Length;
+                console.log('🗑️ Removing existing APP13 segment, length:', app13Length);
             }
             
-            // Create APP1 segment with EXIF data
-            const app1Length = exifData.length + 2; // +2 for length field itself
-            const app1Header = new Uint8Array([
-                0xFF, 0xE1, // APP1 marker
-                (app1Length >> 8) & 0xFF, // Length high byte
-                app1Length & 0xFF // Length low byte
+            // Create Photoshop 3.0 8BIM resource for IPTC - exactly like exiftool format
+            const photoshopHeader = new TextEncoder().encode("Photoshop 3.0\0");
+            const bimSignature = new Uint8Array([0x38, 0x42, 0x49, 0x4D]); // "8BIM"
+            const resourceId = new Uint8Array([0x04, 0x04]); // 0x0404 = IPTC resource
+            
+            // Resource name: empty (just length byte + padding for even alignment)
+            const resourceName = new Uint8Array([0x00, 0x00]); // Length 0 + padding
+            
+            // IPTC data length (4 bytes, big-endian) - this must be exact
+            const dataLength = new Uint8Array(4);
+            const dataView = new DataView(dataLength.buffer);
+            dataView.setUint32(0, iptcData.length, false); // Big-endian, exact length
+            
+            // Calculate total APP13 content length (excluding APP13 marker and length field)
+            const app13ContentLength = photoshopHeader.length + bimSignature.length + 
+                                     resourceId.length + resourceName.length + 
+                                     dataLength.length + iptcData.length;
+            
+            // APP13 segment length includes the length field itself (2 bytes)
+            const app13SegmentLength = app13ContentLength + 2;
+            
+            // Create APP13 header
+            const app13Header = new Uint8Array([
+                0xFF, 0xED, // APP13 marker
+                (app13SegmentLength >> 8) & 0xFF, // Length high byte (big-endian)
+                app13SegmentLength & 0xFF // Length low byte
             ]);
             
-            console.log('📦 Creating EXIF APP1 segment:');
-            console.log('- EXIF data:', exifData.length, 'bytes');
-            console.log('- Total segment:', app1Length, 'bytes');
+            console.log('📦 Creating APP13 segment:');
+            console.log('- Photoshop header:', photoshopHeader.length, 'bytes');
+            console.log('- 8BIM signature:', bimSignature.length, 'bytes');
+            console.log('- Resource ID:', resourceId.length, 'bytes');
+            console.log('- Resource name:', resourceName.length, 'bytes');
+            console.log('- Data length field:', dataLength.length, 'bytes');
+            console.log('- IPTC data:', iptcData.length, 'bytes');
+            console.log('- Total content:', app13ContentLength, 'bytes');
+            console.log('- Total segment:', app13SegmentLength, 'bytes');
             
-            // Combine APP1 header + EXIF data
-            const app1Data = new Uint8Array(app1Header.length + exifData.length);
-            app1Data.set(app1Header, 0);
-            app1Data.set(exifData, app1Header.length);
+            // Combine all APP13 parts in exact order
+            const app13Data = new Uint8Array(app13Header.length + app13ContentLength);
+            let offset = 0;
             
-            // Create new JPEG with EXIF
-            const newJpeg = new Uint8Array(jpeg.length - (insertPoint - 2) + app1Data.length);
+            app13Data.set(app13Header, offset); offset += app13Header.length;
+            app13Data.set(photoshopHeader, offset); offset += photoshopHeader.length;
+            app13Data.set(bimSignature, offset); offset += bimSignature.length;
+            app13Data.set(resourceId, offset); offset += resourceId.length;
+            app13Data.set(resourceName, offset); offset += resourceName.length;
+            app13Data.set(dataLength, offset); offset += dataLength.length;
+            app13Data.set(iptcData, offset);
+            
+            // Create new JPEG with IPTC
+            const newJpeg = new Uint8Array(jpeg.length - (insertPoint - 2) + app13Data.length);
             
             // Copy SOI
             newJpeg.set(jpeg.slice(0, 2), 0);
             
-            // Insert APP1 + EXIF immediately after SOI
-            newJpeg.set(app1Data, 2);
+            // Insert APP13 + IPTC immediately after SOI
+            newJpeg.set(app13Data, 2);
             
-            // Copy rest of JPEG (skipping any existing APP1)
-            newJpeg.set(jpeg.slice(insertPoint), 2 + app1Data.length);
+            // Copy rest of JPEG (skipping any existing APP13)
+            newJpeg.set(jpeg.slice(insertPoint), 2 + app13Data.length);
             
-            console.log('✅ Successfully created JPEG with EXIF Artist field (CMS compatible)');
+            console.log('✅ Successfully created JPEG with IPTC By-line data');
             return newJpeg;
             
         } catch (error) {
-            console.error('💥 Failed to insert EXIF into JPEG:', error);
+            console.error('💥 Failed to insert IPTC into JPEG:', error);
             return null;
         }
     }
