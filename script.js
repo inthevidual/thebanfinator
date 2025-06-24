@@ -835,17 +835,28 @@ class ImageCombiner {
                 throw new Error('Canvas did not produce JPEG data');
             }
             
-            // Create EXIF data
-            const exifObj = {
-                "0th": {
-                    [piexif.ImageIFD.Artist]: authorInfo,
-                    [piexif.ImageIFD.Copyright]: authorInfo,
-                    [piexif.ImageIFD.Software]: "The Banfinator"
-                }
-            };
+            // Try to load existing EXIF data or create new
+            let exifDict;
+            try {
+                exifDict = piexif.load(dataUrl);
+            } catch (e) {
+                // No existing EXIF data, create new structure
+                exifDict = {
+                    "0th": {},
+                    "Exif": {},
+                    "GPS": {},
+                    "1st": {},
+                    "thumbnail": null
+                };
+            }
+            
+            // Set the EXIF data we want
+            exifDict["0th"][piexif.ImageIFD.Artist] = authorInfo;
+            exifDict["0th"][piexif.ImageIFD.Copyright] = authorInfo;
+            exifDict["0th"][piexif.ImageIFD.Software] = "The Banfinator";
             
             // Convert EXIF object to binary
-            const exifBinary = piexif.dump(exifObj);
+            const exifBinary = piexif.dump(exifDict);
             
             // Insert EXIF data into JPEG
             const newJpegBase64 = piexif.insert(exifBinary, base64Data);
