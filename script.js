@@ -872,34 +872,34 @@ class ImageCombiner {
     
     embedExifWithExifJs2(blob, authorInfo) {
         try {
-            // Convert blob to array buffer
+            // Convert blob to array buffer for manual EXIF injection
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const arrayBuffer = e.target.result;
-                    const uint8Array = new Uint8Array(arrayBuffer);
+                    const dataView = new DataView(arrayBuffer);
                     
-                    // Create EXIF data structure manually
-                    // Since exif-js2 might also have limitations, let's use a simple approach
+                    // Check if it's a valid JPEG (starts with 0xFFD8)
+                    if (dataView.getUint16(0, false) !== 0xFFD8) {
+                        throw new Error('Not a valid JPEG file');
+                    }
                     
-                    // For now, let's create a simple EXIF-like structure in the JPEG comment
-                    const comment = `Author: ${authorInfo} | Software: The Banfinator`;
+                    // Create a proper EXIF structure manually
+                    const exifWithAuthor = this.createExifWithAuthor(authorInfo);
+                    const newJpegBuffer = this.insertExifIntoJpeg(arrayBuffer, exifWithAuthor);
                     
-                    // Create new JPEG with comment marker
-                    const newJpeg = this.addJpegComment(uint8Array, comment);
-                    
-                    if (newJpeg) {
-                        const newBlob = new Blob([newJpeg], { type: 'image/jpeg' });
+                    if (newJpegBuffer) {
+                        const newBlob = new Blob([newJpegBuffer], { type: 'image/jpeg' });
                         this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
-                        console.log('JPEG comment embedded successfully. Author:', authorInfo);
+                        console.log('EXIF metadata embedded successfully. Author:', authorInfo);
                     } else {
-                        throw new Error('Failed to add JPEG comment');
+                        throw new Error('Failed to create EXIF data');
                     }
                     
                 } catch (error) {
-                    console.error('Failed to embed metadata:', error);
+                    console.error('Failed to embed EXIF metadata:', error);
                     this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
-                    console.log('Downloaded without metadata due to error');
+                    console.log('Downloaded without EXIF metadata due to error');
                 }
             };
             reader.readAsArrayBuffer(blob);
@@ -910,35 +910,90 @@ class ImageCombiner {
         }
     }
     
-    addJpegComment(jpegData, comment) {
+    createExifWithAuthor(authorInfo) {
+        // Create minimal EXIF structure with Artist field
+        // EXIF header: "Exif\0\0"
+        const exifHeader = new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00]);
+        
+        // TIFF header (little endian)
+        const tiffHeader = new Uint8Array([
+            0x49, 0x49, // "II" - little endian
+            0x2A, 0x00, // TIFF magic number
+            0x08, 0x00, 0x00, 0x00 // Offset to first IFD
+        ]);
+        
+        // IFD0 with Artist tag (0x013B)
+        const authorBytes = new TextEncoder().encode(authorInfo + '\0'); // null-terminated
+        const ifdEntryCount = new Uint8Array([0x01, 0x00]); // 1 entry
+        
+        // Artist tag entry: tag(2) + type(2) + count(4) + value/offset(4) = 12 bytes
+        const artistTag = new Uint8Array(12);
+        const artistView = new DataView(artistTag.buffer);
+        artistView.setUint16(0, 0x013B, true); // Artist tag
+        artistView.setUint16(2, 0x0002, true); // ASCII type
+        artistView.setUint32(4, authorBytes.length, true); // String length
+        
+        // Calculate offset for string data
+        const stringOffset = 8 + 2 + 12 + 4; // TIFF header + entry count + tag entry + next IFD offset
+        artistView.setUint32(8, stringOffset, true); // Offset to string
+        
+        // Next IFD offset (0 = no next IFD)
+        const nextIfdOffset = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
+        
+        // Combine all parts
+        const totalLength = exifHeader.length + tiffHeader.length + ifdEntryCount.length + 
+                           artistTag.length + nextIfdOffset.length + authorBytes.length;
+        const exifData = new Uint8Array(totalLength);
+        
+        let offset = 0;
+        exifData.set(exifHeader, offset); offset += exifHeader.length;
+        exifData.set(tiffHeader, offset); offset += tiffHeader.length;
+        exifData.set(ifdEntryCount, offset); offset += ifdEntryCount.length;
+        exifData.set(artistTag, offset); offset += artistTag.length;
+        exifData.set(nextIfdOffset, offset); offset += nextIfdOffset.length;
+        exifData.set(authorBytes, offset);
+        
+        return exifData;
+    }
+    
+    insertExifIntoJpeg(jpegBuffer, exifData) {
         try {
-            // Find the end of SOI marker (0xFFD8)
-            if (jpegData[0] !== 0xFF || jpegData[1] !== 0xD8) {
-                throw new Error('Not a valid JPEG');
+            const jpeg = new Uint8Array(jpegBuffer);
+            
+            // Find insertion point after SOI (0xFFD8)
+            let insertPoint = 2;
+            
+            // Look for existing APP1 marker (0xFFE1) and remove it if present
+            if (jpeg.length > 4 && jpeg[2] === 0xFF && jpeg[3] === 0xE1) {
+                const app1Length = (jpeg[4] << 8) | jpeg[5];
+                insertPoint = 4 + app1Length;
             }
             
-            // Create comment marker (0xFFFE)
-            const commentBytes = new TextEncoder().encode(comment);
-            const commentLength = commentBytes.length + 2; // +2 for length bytes
+            // Create APP1 segment with EXIF data
+            const app1Length = exifData.length + 2; // +2 for length field itself
+            const app1Header = new Uint8Array([
+                0xFF, 0xE1, // APP1 marker
+                (app1Length >> 8) & 0xFF, // Length high byte
+                app1Length & 0xFF // Length low byte
+            ]);
             
-            // Create the comment segment
-            const commentSegment = new Uint8Array(4 + commentBytes.length);
-            commentSegment[0] = 0xFF; // Marker prefix
-            commentSegment[1] = 0xFE; // Comment marker
-            commentSegment[2] = (commentLength >> 8) & 0xFF; // Length high byte
-            commentSegment[3] = commentLength & 0xFF; // Length low byte
-            commentSegment.set(commentBytes, 4);
+            // Create new JPEG with EXIF
+            const newJpeg = new Uint8Array(jpeg.length + app1Header.length + exifData.length);
             
-            // Insert comment after SOI marker
-            const newJpeg = new Uint8Array(jpegData.length + commentSegment.length);
-            newJpeg.set(jpegData.slice(0, 2), 0); // SOI marker
-            newJpeg.set(commentSegment, 2); // Comment segment
-            newJpeg.set(jpegData.slice(2), 2 + commentSegment.length); // Rest of JPEG
+            // Copy SOI
+            newJpeg.set(jpeg.slice(0, 2), 0);
+            
+            // Insert APP1 + EXIF
+            newJpeg.set(app1Header, 2);
+            newJpeg.set(exifData, 2 + app1Header.length);
+            
+            // Copy rest of JPEG
+            newJpeg.set(jpeg.slice(insertPoint), 2 + app1Header.length + exifData.length);
             
             return newJpeg;
             
         } catch (error) {
-            console.error('Failed to add JPEG comment:', error);
+            console.error('Failed to insert EXIF into JPEG:', error);
             return null;
         }
     }
