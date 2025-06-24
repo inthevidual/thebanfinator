@@ -176,8 +176,6 @@ class ImageCombiner {
     }
     
     extractIPTC(file, side) {
-        console.log(`Starting metadata extraction for ${side} image`);
-        
         // First try to read IPTC data directly from the file
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -185,7 +183,7 @@ class ImageCombiner {
             const iptcCreator = this.extractIptcCreatorFromBuffer(arrayBuffer);
             
             if (iptcCreator) {
-                console.log(`✅ Found IPTC Creator in ${side} image:`, iptcCreator);
+                console.log(`Found IPTC Creator in ${side} image:`, iptcCreator);
                 if (side === 'left') {
                     this.leftCopyright = iptcCreator;
                 } else {
@@ -195,48 +193,26 @@ class ImageCombiner {
                 return;
             }
             
-            console.log(`❌ No IPTC Creator found in ${side} image, trying EXIF fallback`);
-            
             // Fallback to EXIF.js if no IPTC Creator found
             EXIF.getData(file, () => {
                 let creator = '';
                 
                 // Try to get raw metadata
-                const rawCreator = EXIF.getTag(file, 'Creator');
-                const rawByline = EXIF.getTag(file, 'By-line');
-                const rawIPTCByline = EXIF.getTag(file, 'IPTCByline');
                 const rawArtist = EXIF.getTag(file, 'Artist');
-                const rawAuthor = EXIF.getTag(file, 'Author'); 
                 const rawCopyright = EXIF.getTag(file, 'Copyright');
                 
-                console.log(`Raw metadata extracted:`, {
-                    creator: rawCreator,
-                    byline: rawByline,
-                    iptcByline: rawIPTCByline,
+                console.log(`EXIF fallback for ${side} image:`, {
                     artist: rawArtist,
-                    author: rawAuthor,
                     copyright: rawCopyright
                 });
                 
-                // Prioritize By-line first, then Creator, then Artist, then Copyright
-                if (rawByline && rawByline.trim()) {
-                    creator = this.cleanMetadataString(rawByline);
-                    console.log(`Using By-line field for ${side}:`, creator);
-                } else if (rawCreator && rawCreator.trim()) {
-                    creator = this.cleanMetadataString(rawCreator);
-                    console.log(`Using Creator field for ${side}:`, creator);
-                } else if (rawIPTCByline && rawIPTCByline.trim()) {
-                    creator = this.cleanMetadataString(rawIPTCByline);
-                    console.log(`Using IPTC Byline field for ${side}:`, creator);
-                } else if (rawArtist && rawArtist.trim()) {
+                // Clean and use Artist as fallback
+                if (rawArtist && rawArtist.trim()) {
                     creator = this.cleanMetadataString(rawArtist);
-                    console.log(`Fallback to Artist field for ${side}:`, creator);
-                } else if (rawAuthor && rawAuthor.trim()) {
-                    creator = this.cleanMetadataString(rawAuthor);
-                    console.log(`Fallback to Author field for ${side}:`, creator);
+                    console.log(`Using cleaned Artist field for ${side}:`, creator);
                 } else if (rawCopyright && rawCopyright.trim()) {
                     creator = this.cleanMetadataString(rawCopyright);
-                    console.log(`Fallback to Copyright field for ${side}:`, creator);
+                    console.log(`Using cleaned Copyright field for ${side}:`, creator);
                 }
                 
                 if (side === 'left') {
@@ -245,46 +221,29 @@ class ImageCombiner {
                     this.rightCopyright = creator;
                 }
                 
-                console.log(`${side} image final creator:`, creator);
                 this.mergeCopyright();
             });
         };
-        
-        reader.onerror = (error) => {
-            console.error(`Error reading file for ${side} image:`, error);
-        };
-        
         reader.readAsArrayBuffer(file);
     }
     
     extractIptcCreatorFromBuffer(arrayBuffer) {
         try {
-            console.log('🔍 Starting custom IPTC extraction, file size:', arrayBuffer.byteLength);
             const dataView = new DataView(arrayBuffer);
             
             // Check if it's a valid JPEG
             if (dataView.getUint16(0, false) !== 0xFFD8) {
-                console.log('❌ Not a valid JPEG file');
                 return null;
             }
             
-            console.log('✅ Valid JPEG detected, scanning for APP13 segments...');
-            
             // Look for APP13 segment (Photoshop IPTC data)
             let offset = 2; // Skip SOI marker
-            let segmentCount = 0;
             
             while (offset < arrayBuffer.byteLength - 4) {
                 const marker = dataView.getUint16(offset, false);
-                segmentCount++;
-                
-                console.log(`Segment ${segmentCount}: marker 0x${marker.toString(16).toUpperCase()} at offset ${offset}`);
                 
                 if (marker === 0xFFED) { // APP13 marker
-                    console.log('🎯 Found APP13 segment!');
                     const segmentLength = dataView.getUint16(offset + 2, false);
-                    console.log('APP13 segment length:', segmentLength);
-                    
                     const segmentData = new Uint8Array(arrayBuffer, offset + 4, segmentLength - 2);
                     
                     // Look for "Photoshop 3.0" signature
@@ -298,44 +257,27 @@ class ImageCombiner {
                     }
                     
                     if (sigFound) {
-                        console.log('✅ Found Photoshop 3.0 signature, parsing 8BIM resources...');
                         // Parse 8BIM resources
                         const creator = this.parseIptcFromPhotoshopSegment(segmentData);
                         if (creator) {
-                            console.log('🎉 Successfully extracted IPTC Creator:', creator);
                             return creator;
-                        } else {
-                            console.log('❌ No Creator found in 8BIM resources');
                         }
-                    } else {
-                        console.log('❌ No Photoshop signature found in APP13');
                     }
                     
                     offset += 2 + segmentLength;
                 } else if ((marker & 0xFF00) === 0xFF00) {
                     // Other marker
-                    if (marker === 0xFFDA) {
-                        console.log('📍 Reached start of scan (SOS), stopping metadata search');
-                        break; // Start of scan, no more metadata
-                    }
+                    if (marker === 0xFFDA) break; // Start of scan, no more metadata
                     const segmentLength = dataView.getUint16(offset + 2, false);
                     offset += 2 + segmentLength;
                 } else {
-                    console.log('❌ Invalid marker found, stopping');
-                    break;
-                }
-                
-                // Safety check to prevent infinite loops
-                if (segmentCount > 50) {
-                    console.log('⚠️ Too many segments, stopping to prevent infinite loop');
                     break;
                 }
             }
             
-            console.log('❌ No IPTC Creator found in any APP13 segments');
             return null;
         } catch (error) {
-            console.error('💥 Error extracting IPTC:', error);
+            console.error('Error extracting IPTC:', error);
             return null;
         }
     }
@@ -405,11 +347,6 @@ class ImageCombiner {
     parseIptcData(iptcData) {
         try {
             let offset = 0;
-            let byline = null;
-            let creator = null;
-            let copyright = null;
-            
-            console.log('🔍 Parsing IPTC data, length:', iptcData.length);
             
             while (offset < iptcData.length - 5) {
                 // Check for IPTC tag marker
@@ -420,27 +357,11 @@ class ImageCombiner {
                     
                     offset += 5;
                     
-                    console.log(`Found IPTC tag: Record ${record}, Dataset ${dataset}, Length ${length}`);
-                    
-                    if (offset + length <= iptcData.length) {
-                        const fieldBytes = iptcData.slice(offset, offset + length);
-                        const fieldValue = new TextDecoder('utf-8').decode(fieldBytes).trim();
-                        
-                        // Check for By-line field (Record 2, Dataset 80) - PRIORITY
-                        if (record === 0x02 && dataset === 0x50) {
-                            byline = fieldValue;
-                            console.log('📝 Found By-line field:', byline);
-                        }
-                        // Check for Creator field (alternative)
-                        else if (record === 0x02 && dataset === 0x7A) { // Creator dataset
-                            creator = fieldValue;
-                            console.log('👤 Found Creator field:', creator);
-                        }
-                        // Check for Copyright field (Record 2, Dataset 116)
-                        else if (record === 0x02 && dataset === 0x74) {
-                            copyright = fieldValue;
-                            console.log('©️ Found Copyright field:', copyright);
-                        }
+                    // Check for By-line/Creator field (Record 2, Dataset 80)
+                    if (record === 0x02 && dataset === 0x50) {
+                        const creatorBytes = iptcData.slice(offset, offset + length);
+                        const creator = new TextDecoder('utf-8').decode(creatorBytes);
+                        return creator.trim();
                     }
                     
                     offset += length;
@@ -449,22 +370,9 @@ class ImageCombiner {
                 }
             }
             
-            // Priority: By-line > Creator > Copyright
-            if (byline) {
-                console.log('✅ Using By-line field:', byline);
-                return byline;
-            } else if (creator) {
-                console.log('⚠️ No By-line, using Creator field:', creator);
-                return creator;
-            } else if (copyright) {
-                console.log('⚠️ No By-line or Creator, using Copyright field:', copyright);
-                return copyright;
-            }
-            
-            console.log('❌ No By-line, Creator, or Copyright fields found');
             return null;
         } catch (error) {
-            console.error('💥 Error parsing IPTC data:', error);
+            console.error('Error parsing IPTC data:', error);
             return null;
         }
     }
@@ -1219,31 +1127,70 @@ class ImageCombiner {
     }
     
     createIptcWithByline(creatorInfo) {
-        // Create IPTC-IIM data structure exactly like exiftool does
+        // Create IPTC-IIM data structure with Creator field (proper IPTC term)
         
         // Ensure the creator info is properly encoded as UTF-8
         const creatorBytes = new TextEncoder().encode(creatorInfo);
         
-        // Create minimal IPTC structure with only By-line field
-        // This matches what exiftool creates for maximum compatibility
+        // IPTC Creator tag: Record 2, Dataset 80 (0x50) - also known as Byline
+        const iptcEntry = new Uint8Array(5 + creatorBytes.length);
         
-        // IPTC By-line tag: Record 2, Dataset 80 (0x50) - ONLY this field for compatibility
-        const bylineEntry = new Uint8Array(5 + creatorBytes.length);
+        iptcEntry[0] = 0x1C; // IPTC tag marker
+        iptcEntry[1] = 0x02; // Record 2 (Application Record)
+        iptcEntry[2] = 0x50; // Dataset 80 (Creator/Byline)
         
-        bylineEntry[0] = 0x1C; // IPTC tag marker
-        bylineEntry[1] = 0x02; // Record 2 (Application Record)
-        bylineEntry[2] = 0x50; // Dataset 80 (By-line)
+        // Handle length encoding properly for IPTC
+        if (creatorBytes.length < 32768) {
+            // Standard length encoding (2 bytes)
+            iptcEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
+            iptcEntry[4] = creatorBytes.length & 0xFF; // Length low byte
+            iptcEntry.set(creatorBytes, 5); // Creator data
+        } else {
+            // Extended length encoding would be needed for very long strings
+            // For now, truncate if too long
+            const truncatedBytes = creatorBytes.slice(0, 32767);
+            iptcEntry[3] = (truncatedBytes.length >> 8) & 0xFF;
+            iptcEntry[4] = truncatedBytes.length & 0xFF;
+            iptcEntry.set(truncatedBytes, 5);
+        }
         
-        // IPTC uses big-endian length encoding (most significant byte first)
-        bylineEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
-        bylineEntry[4] = creatorBytes.length & 0xFF; // Length low byte
-        bylineEntry.set(creatorBytes, 5); // Creator data
+        // Also add Software/Program tag (Record 2, Dataset 65)
+        const softwareText = "The Banfinator";
+        const softwareBytes = new TextEncoder().encode(softwareText);
+        const softwareEntry = new Uint8Array(5 + softwareBytes.length);
         
-        // For maximum CMS compatibility, create ONLY the By-line field
-        // Additional fields can cause parsing issues in some CMS systems
-        console.log('📝 Created minimal IPTC data with By-line field only:', creatorInfo, 'Byte length:', creatorBytes.length);
+        softwareEntry[0] = 0x1C; // IPTC tag marker
+        softwareEntry[1] = 0x02; // Record 2 (Application Record)
+        softwareEntry[2] = 0x41; // Dataset 65 (Program/Software)
+        softwareEntry[3] = (softwareBytes.length >> 8) & 0xFF; // Length high byte
+        softwareEntry[4] = softwareBytes.length & 0xFF; // Length low byte
+        softwareEntry.set(softwareBytes, 5); // Software data
         
-        return bylineEntry;
+        // Add Copyright Notice tag (Record 2, Dataset 116) as well
+        const copyrightBytes = new TextEncoder().encode(creatorInfo);
+        const copyrightEntry = new Uint8Array(5 + copyrightBytes.length);
+        
+        copyrightEntry[0] = 0x1C; // IPTC tag marker
+        copyrightEntry[1] = 0x02; // Record 2 (Application Record)
+        copyrightEntry[2] = 0x74; // Dataset 116 (Copyright Notice)
+        copyrightEntry[3] = (copyrightBytes.length >> 8) & 0xFF; // Length high byte
+        copyrightEntry[4] = copyrightBytes.length & 0xFF; // Length low byte
+        copyrightEntry.set(copyrightBytes, 5); // Copyright data
+        
+        // Combine IPTC entries
+        const totalLength = iptcEntry.length + softwareEntry.length + copyrightEntry.length;
+        const iptcData = new Uint8Array(totalLength);
+        let offset = 0;
+        
+        iptcData.set(iptcEntry, offset);
+        offset += iptcEntry.length;
+        iptcData.set(softwareEntry, offset);
+        offset += softwareEntry.length;
+        iptcData.set(copyrightEntry, offset);
+        
+        console.log('Created IPTC data for creator:', creatorInfo, 'Length:', creatorBytes.length);
+        
+        return iptcData;
     }
     
     insertIptcIntoJpeg(jpegBuffer, iptcData) {
@@ -1253,52 +1200,38 @@ class ImageCombiner {
             // Find insertion point after SOI (0xFFD8)
             let insertPoint = 2;
             
-            // Look for existing APP13 marker (0xFFED) and remove it if present
+            // Look for existing APP13 marker (0xFFED) which contains IPTC data
             if (jpeg.length > 4 && jpeg[2] === 0xFF && jpeg[3] === 0xED) {
                 const app13Length = (jpeg[4] << 8) | jpeg[5];
                 insertPoint = 4 + app13Length;
-                console.log('🗑️ Removing existing APP13 segment, length:', app13Length);
             }
             
-            // Create Photoshop 3.0 8BIM resource for IPTC - exactly like exiftool format
+            // Create Photoshop 3.0 8BIM resource for IPTC
+            // Format: "Photoshop 3.0\0" + 8BIM + Resource ID + Name + Data
             const photoshopHeader = new TextEncoder().encode("Photoshop 3.0\0");
             const bimSignature = new Uint8Array([0x38, 0x42, 0x49, 0x4D]); // "8BIM"
             const resourceId = new Uint8Array([0x04, 0x04]); // 0x0404 = IPTC resource
+            const resourceName = new Uint8Array([0x00, 0x00]); // Empty name (2 bytes for length + padding)
             
-            // Resource name: empty (just length byte + padding for even alignment)
-            const resourceName = new Uint8Array([0x00, 0x00]); // Length 0 + padding
-            
-            // IPTC data length (4 bytes, big-endian) - this must be exact
+            // IPTC data length (4 bytes, big-endian)
             const dataLength = new Uint8Array(4);
             const dataView = new DataView(dataLength.buffer);
-            dataView.setUint32(0, iptcData.length, false); // Big-endian, exact length
+            dataView.setUint32(0, iptcData.length, false); // Big-endian
             
-            // Calculate total APP13 content length (excluding APP13 marker and length field)
+            // Calculate total APP13 length
             const app13ContentLength = photoshopHeader.length + bimSignature.length + 
                                      resourceId.length + resourceName.length + 
                                      dataLength.length + iptcData.length;
+            const app13Length = app13ContentLength + 2; // +2 for length field itself
             
-            // APP13 segment length includes the length field itself (2 bytes)
-            const app13SegmentLength = app13ContentLength + 2;
-            
-            // Create APP13 header
+            // Create APP13 segment
             const app13Header = new Uint8Array([
                 0xFF, 0xED, // APP13 marker
-                (app13SegmentLength >> 8) & 0xFF, // Length high byte (big-endian)
-                app13SegmentLength & 0xFF // Length low byte
+                (app13Length >> 8) & 0xFF, // Length high byte
+                app13Length & 0xFF // Length low byte
             ]);
             
-            console.log('📦 Creating APP13 segment:');
-            console.log('- Photoshop header:', photoshopHeader.length, 'bytes');
-            console.log('- 8BIM signature:', bimSignature.length, 'bytes');
-            console.log('- Resource ID:', resourceId.length, 'bytes');
-            console.log('- Resource name:', resourceName.length, 'bytes');
-            console.log('- Data length field:', dataLength.length, 'bytes');
-            console.log('- IPTC data:', iptcData.length, 'bytes');
-            console.log('- Total content:', app13ContentLength, 'bytes');
-            console.log('- Total segment:', app13SegmentLength, 'bytes');
-            
-            // Combine all APP13 parts in exact order
+            // Combine all APP13 parts
             const app13Data = new Uint8Array(app13Header.length + app13ContentLength);
             let offset = 0;
             
@@ -1311,22 +1244,21 @@ class ImageCombiner {
             app13Data.set(iptcData, offset);
             
             // Create new JPEG with IPTC
-            const newJpeg = new Uint8Array(jpeg.length - (insertPoint - 2) + app13Data.length);
+            const newJpeg = new Uint8Array(jpeg.length + app13Data.length);
             
             // Copy SOI
             newJpeg.set(jpeg.slice(0, 2), 0);
             
-            // Insert APP13 + IPTC immediately after SOI
+            // Insert APP13 + IPTC
             newJpeg.set(app13Data, 2);
             
-            // Copy rest of JPEG (skipping any existing APP13)
+            // Copy rest of JPEG
             newJpeg.set(jpeg.slice(insertPoint), 2 + app13Data.length);
             
-            console.log('✅ Successfully created JPEG with IPTC By-line data');
             return newJpeg;
             
         } catch (error) {
-            console.error('💥 Failed to insert IPTC into JPEG:', error);
+            console.error('Failed to insert IPTC into JPEG:', error);
             return null;
         }
     }
