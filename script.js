@@ -177,14 +177,17 @@ class ImageCombiner {
     
     extractIPTC(file, side) {
         EXIF.getData(file, () => {
-            const copyright = EXIF.getTag(file, 'Copyright') || 
-                            EXIF.getTag(file, 'Artist') || 
-                            EXIF.getTag(file, 'Author') || '';
+            // Prioritize Author field, fallback to Copyright if Author is empty/missing
+            let author = EXIF.getTag(file, 'Artist') || EXIF.getTag(file, 'Author') || '';
+            let copyright = EXIF.getTag(file, 'Copyright') || '';
+            
+            // Use Author if available, otherwise use Copyright
+            const metadataValue = author || copyright;
             
             if (side === 'left') {
-                this.leftCopyright = copyright;
+                this.leftCopyright = metadataValue;
             } else {
-                this.rightCopyright = copyright;
+                this.rightCopyright = metadataValue;
             }
             
             this.mergeCopyright();
@@ -796,6 +799,9 @@ class ImageCombiner {
     exportImage() {
         if (!this.leftImage || !this.rightImage) return;
         
+        // Get the copyright/author information from the field
+        const authorInfo = $('#copyrightField').val() || '';
+        
         // Create a temporary canvas for export
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = 3000;
@@ -806,17 +812,74 @@ class ImageCombiner {
         this.drawCanvas();
         exportCtx.drawImage(this.canvas, 0, 0);
         
-        // Export as JPG with 80% quality
+        // Export as JPG with EXIF metadata
         exportCanvas.toBlob((blob) => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'banfinator_kombinerad_bild.jpg';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 'image/jpeg', 1.0);
+            if (authorInfo && typeof piexif !== 'undefined') {
+                this.embedExifAndDownload(blob, authorInfo);
+            } else {
+                // Fallback without metadata
+                this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+            }
+        }, 'image/jpeg', 0.8);
+    }
+    
+    embedExifAndDownload(blob, authorInfo) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const dataUrl = e.target.result;
+                const jpeg = dataUrl.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+                
+                // Create EXIF data
+                const exifObj = {
+                    "0th": {
+                        [piexif.ImageIFD.Artist]: authorInfo,
+                        [piexif.ImageIFD.Copyright]: authorInfo,
+                        [piexif.ImageIFD.Software]: "The Banfinator",
+                        [piexif.ImageIFD.DateTime]: new Date().toISOString().replace('T', ' ').substr(0, 19)
+                    },
+                    "Exif": {
+                        [piexif.ExifIFD.UserComment]: piexif.helper.UserCommentEncode(authorInfo)
+                    }
+                };
+                
+                // Convert EXIF object to binary
+                const exifBinary = piexif.dump(exifObj);
+                
+                // Insert EXIF data into JPEG
+                const newJpeg = piexif.insert(exifBinary, jpeg);
+                
+                // Convert back to blob
+                const byteCharacters = atob(newJpeg);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const newBlob = new Blob([byteArray], { type: 'image/jpeg' });
+                
+                this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
+                
+                console.log('EXIF metadata embedded successfully. Author:', authorInfo);
+                
+            } catch (error) {
+                console.error('Failed to embed EXIF metadata:', error);
+                // Fallback to download without metadata
+                this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+            }
+        };
+        reader.readAsDataURL(blob);
+    }
+    
+    downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }
 
