@@ -176,84 +176,205 @@ class ImageCombiner {
     }
     
     extractIPTC(file, side) {
-        EXIF.getData(file, () => {
-            // Try different metadata fields - Creator field can be accessed through different tag names
-            let creator = '';
+        // First try to read IPTC data directly from the file
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const arrayBuffer = e.target.result;
+            const iptcCreator = this.extractIptcCreatorFromBuffer(arrayBuffer);
             
-            // Try to get raw metadata - Creator field might be in different tags
-            const rawCreator = EXIF.getTag(file, 'Creator');
-            const rawByline = EXIF.getTag(file, 'By-line'); // IPTC Byline field
-            const rawIPTCByline = EXIF.getTag(file, 'IPTCByline'); // Alternative IPTC access
-            const rawArtist = EXIF.getTag(file, 'Artist');
-            const rawAuthor = EXIF.getTag(file, 'Author'); 
-            const rawCopyright = EXIF.getTag(file, 'Copyright');
-            
-            // Also try accessing raw IPTC data if available
-            const allTags = EXIF.getAllTags(file);
-            
-            // Debug log the raw values
-            console.log('Raw metadata extracted:', {
-                creator: rawCreator,
-                byline: rawByline,
-                iptcByline: rawIPTCByline,
-                artist: rawArtist,
-                author: rawAuthor,
-                copyright: rawCopyright,
-                allAvailableTags: Object.keys(allTags)
-            });
-            
-            // Check if there are any IPTC-specific tags in the available tags
-            const iptcTags = Object.keys(allTags).filter(tag => 
-                tag.toLowerCase().includes('creator') || 
-                tag.toLowerCase().includes('byline') ||
-                tag.toLowerCase().includes('iptc')
-            );
-            
-            if (iptcTags.length > 0) {
-                console.log('Found IPTC-related tags:', iptcTags);
-                // Try to get the first IPTC creator-related tag
-                for (const tag of iptcTags) {
-                    const value = EXIF.getTag(file, tag);
-                    if (value && value.trim()) {
-                        creator = this.cleanMetadataString(value);
-                        console.log(`Using IPTC tag "${tag}":`, creator);
-                        break;
-                    }
+            if (iptcCreator) {
+                console.log(`Found IPTC Creator in ${side} image:`, iptcCreator);
+                if (side === 'left') {
+                    this.leftCopyright = iptcCreator;
+                } else {
+                    this.rightCopyright = iptcCreator;
                 }
+                this.mergeCopyright();
+                return;
             }
             
-            // Fallback priority if no IPTC Creator found
-            if (!creator) {
-                if (rawCreator && rawCreator.trim()) {
-                    creator = this.cleanMetadataString(rawCreator);
-                    console.log('Using Creator field:', creator);
-                } else if (rawByline && rawByline.trim()) {
-                    creator = this.cleanMetadataString(rawByline);
-                    console.log('Using By-line field:', creator);
-                } else if (rawIPTCByline && rawIPTCByline.trim()) {
-                    creator = this.cleanMetadataString(rawIPTCByline);
-                    console.log('Using IPTC Byline field:', creator);
-                } else if (rawArtist && rawArtist.trim()) {
+            // Fallback to EXIF.js if no IPTC Creator found
+            EXIF.getData(file, () => {
+                let creator = '';
+                
+                // Try to get raw metadata
+                const rawArtist = EXIF.getTag(file, 'Artist');
+                const rawCopyright = EXIF.getTag(file, 'Copyright');
+                
+                console.log(`EXIF fallback for ${side} image:`, {
+                    artist: rawArtist,
+                    copyright: rawCopyright
+                });
+                
+                // Clean and use Artist as fallback
+                if (rawArtist && rawArtist.trim()) {
                     creator = this.cleanMetadataString(rawArtist);
-                    console.log('Fallback to Artist field:', creator);
-                } else if (rawAuthor && rawAuthor.trim()) {
-                    creator = this.cleanMetadataString(rawAuthor);
-                    console.log('Fallback to Author field:', creator);
+                    console.log(`Using cleaned Artist field for ${side}:`, creator);
                 } else if (rawCopyright && rawCopyright.trim()) {
                     creator = this.cleanMetadataString(rawCopyright);
-                    console.log('Fallback to Copyright field:', creator);
+                    console.log(`Using cleaned Copyright field for ${side}:`, creator);
+                }
+                
+                if (side === 'left') {
+                    this.leftCopyright = creator;
+                } else {
+                    this.rightCopyright = creator;
+                }
+                
+                this.mergeCopyright();
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    }
+    
+    extractIptcCreatorFromBuffer(arrayBuffer) {
+        try {
+            const dataView = new DataView(arrayBuffer);
+            
+            // Check if it's a valid JPEG
+            if (dataView.getUint16(0, false) !== 0xFFD8) {
+                return null;
+            }
+            
+            // Look for APP13 segment (Photoshop IPTC data)
+            let offset = 2; // Skip SOI marker
+            
+            while (offset < arrayBuffer.byteLength - 4) {
+                const marker = dataView.getUint16(offset, false);
+                
+                if (marker === 0xFFED) { // APP13 marker
+                    const segmentLength = dataView.getUint16(offset + 2, false);
+                    const segmentData = new Uint8Array(arrayBuffer, offset + 4, segmentLength - 2);
+                    
+                    // Look for "Photoshop 3.0" signature
+                    const photoshopSig = "Photoshop 3.0\0";
+                    let sigFound = true;
+                    for (let i = 0; i < photoshopSig.length; i++) {
+                        if (segmentData[i] !== photoshopSig.charCodeAt(i)) {
+                            sigFound = false;
+                            break;
+                        }
+                    }
+                    
+                    if (sigFound) {
+                        // Parse 8BIM resources
+                        const creator = this.parseIptcFromPhotoshopSegment(segmentData);
+                        if (creator) {
+                            return creator;
+                        }
+                    }
+                    
+                    offset += 2 + segmentLength;
+                } else if ((marker & 0xFF00) === 0xFF00) {
+                    // Other marker
+                    if (marker === 0xFFDA) break; // Start of scan, no more metadata
+                    const segmentLength = dataView.getUint16(offset + 2, false);
+                    offset += 2 + segmentLength;
+                } else {
+                    break;
                 }
             }
             
-            if (side === 'left') {
-                this.leftCopyright = creator;
-            } else {
-                this.rightCopyright = creator;
+            return null;
+        } catch (error) {
+            console.error('Error extracting IPTC:', error);
+            return null;
+        }
+    }
+    
+    parseIptcFromPhotoshopSegment(segmentData) {
+        try {
+            let offset = 14; // Skip "Photoshop 3.0\0"
+            
+            while (offset < segmentData.length - 8) {
+                // Check for 8BIM signature
+                if (segmentData[offset] === 0x38 && 
+                    segmentData[offset + 1] === 0x42 && 
+                    segmentData[offset + 2] === 0x49 && 
+                    segmentData[offset + 3] === 0x4D) {
+                    
+                    offset += 4; // Skip "8BIM"
+                    
+                    // Read resource ID
+                    const resourceId = (segmentData[offset] << 8) | segmentData[offset + 1];
+                    offset += 2;
+                    
+                    // Skip resource name (variable length, padded to even)
+                    const nameLength = segmentData[offset];
+                    offset += 1;
+                    if (nameLength === 0) {
+                        offset += 1; // Padding for even alignment
+                    } else {
+                        offset += nameLength;
+                        if ((nameLength + 1) % 2 !== 0) {
+                            offset += 1; // Padding
+                        }
+                    }
+                    
+                    // Read resource data length
+                    const dataLength = (segmentData[offset] << 24) | 
+                                     (segmentData[offset + 1] << 16) | 
+                                     (segmentData[offset + 2] << 8) | 
+                                     segmentData[offset + 3];
+                    offset += 4;
+                    
+                    // Check if this is IPTC resource (0x0404)
+                    if (resourceId === 0x0404) {
+                        const iptcData = segmentData.slice(offset, offset + dataLength);
+                        const creator = this.parseIptcData(iptcData);
+                        if (creator) {
+                            return creator;
+                        }
+                    }
+                    
+                    offset += dataLength;
+                    // Pad to even boundary
+                    if (dataLength % 2 !== 0) {
+                        offset += 1;
+                    }
+                } else {
+                    offset += 1;
+                }
             }
             
-            console.log(`${side} image final creator:`, creator);
-            this.mergeCopyright();
-        });
+            return null;
+        } catch (error) {
+            console.error('Error parsing Photoshop segment:', error);
+            return null;
+        }
+    }
+    
+    parseIptcData(iptcData) {
+        try {
+            let offset = 0;
+            
+            while (offset < iptcData.length - 5) {
+                // Check for IPTC tag marker
+                if (iptcData[offset] === 0x1C) {
+                    const record = iptcData[offset + 1];
+                    const dataset = iptcData[offset + 2];
+                    const length = (iptcData[offset + 3] << 8) | iptcData[offset + 4];
+                    
+                    offset += 5;
+                    
+                    // Check for By-line/Creator field (Record 2, Dataset 80)
+                    if (record === 0x02 && dataset === 0x50) {
+                        const creatorBytes = iptcData.slice(offset, offset + length);
+                        const creator = new TextDecoder('utf-8').decode(creatorBytes);
+                        return creator.trim();
+                    }
+                    
+                    offset += length;
+                } else {
+                    offset += 1;
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error parsing IPTC data:', error);
+            return null;
+        }
     }
     
     cleanMetadataString(str) {
