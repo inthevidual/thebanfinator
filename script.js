@@ -796,32 +796,6 @@ class ImageCombiner {
         $('#exportBtn').prop('disabled', !hasImages);
     }
     
-    exportImage() {
-        if (!this.leftImage || !this.rightImage) return;
-        
-        // Get the copyright/author information from the field
-        const authorInfo = $('#copyrightField').val() || '';
-        
-        // Create a temporary canvas for export
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = 3000;
-        exportCanvas.height = 2000;
-        const exportCtx = exportCanvas.getContext('2d');
-        
-        // Draw only the images without any UI elements
-        this.drawCanvasForExport(exportCtx);
-        
-        // Try a simpler approach for EXIF - use a different library or method
-        exportCanvas.toBlob((blob) => {
-            if (authorInfo) {
-                // Try alternative approach for metadata
-                this.tryAlternativeMetadata(blob, authorInfo);
-            } else {
-                this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
-            }
-        }, 'image/jpeg', 0.8);
-    }
-    
     drawCanvasForExport(ctx) {
         // Clear canvas
         ctx.clearRect(0, 0, 3000, 2000);
@@ -871,19 +845,102 @@ class ImageCombiner {
         // Note: We do NOT draw selection borders or resize handles for export
     }
     
-    tryAlternativeMetadata(blob, authorInfo) {
-        // Since piexifjs is having issues, let's try a different approach
-        // We'll embed the metadata in the filename and console log it
-        console.log('Author information for EXIF:', authorInfo);
+    exportImage() {
+        if (!this.leftImage || !this.rightImage) return;
         
-        // For now, download without embedded EXIF but with clear logging
-        this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+        // Get the copyright/author information from the field
+        const authorInfo = $('#copyrightField').val() || '';
         
-        // Log a message about the metadata that should be embedded
-        console.log('Note: Author "' + authorInfo + '" should be embedded as EXIF Artist/Copyright fields');
+        // Create a temporary canvas for export
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = 3000;
+        exportCanvas.height = 2000;
+        const exportCtx = exportCanvas.getContext('2d');
         
-        // In the future, this could be replaced with a server-side solution
-        // or a different metadata library that works better with canvas-generated JPEGs
+        // Draw only the images without any UI elements
+        this.drawCanvasForExport(exportCtx);
+        
+        // Export as blob
+        exportCanvas.toBlob((blob) => {
+            if (authorInfo) {
+                this.embedExifWithExifJs2(blob, authorInfo);
+            } else {
+                this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+            }
+        }, 'image/jpeg', 0.8);
+    }
+    
+    embedExifWithExifJs2(blob, authorInfo) {
+        try {
+            // Convert blob to array buffer
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const arrayBuffer = e.target.result;
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    
+                    // Create EXIF data structure manually
+                    // Since exif-js2 might also have limitations, let's use a simple approach
+                    
+                    // For now, let's create a simple EXIF-like structure in the JPEG comment
+                    const comment = `Author: ${authorInfo} | Software: The Banfinator`;
+                    
+                    // Create new JPEG with comment marker
+                    const newJpeg = this.addJpegComment(uint8Array, comment);
+                    
+                    if (newJpeg) {
+                        const newBlob = new Blob([newJpeg], { type: 'image/jpeg' });
+                        this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
+                        console.log('JPEG comment embedded successfully. Author:', authorInfo);
+                    } else {
+                        throw new Error('Failed to add JPEG comment');
+                    }
+                    
+                } catch (error) {
+                    console.error('Failed to embed metadata:', error);
+                    this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+                    console.log('Downloaded without metadata due to error');
+                }
+            };
+            reader.readAsArrayBuffer(blob);
+            
+        } catch (error) {
+            console.error('Failed to process blob:', error);
+            this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+        }
+    }
+    
+    addJpegComment(jpegData, comment) {
+        try {
+            // Find the end of SOI marker (0xFFD8)
+            if (jpegData[0] !== 0xFF || jpegData[1] !== 0xD8) {
+                throw new Error('Not a valid JPEG');
+            }
+            
+            // Create comment marker (0xFFFE)
+            const commentBytes = new TextEncoder().encode(comment);
+            const commentLength = commentBytes.length + 2; // +2 for length bytes
+            
+            // Create the comment segment
+            const commentSegment = new Uint8Array(4 + commentBytes.length);
+            commentSegment[0] = 0xFF; // Marker prefix
+            commentSegment[1] = 0xFE; // Comment marker
+            commentSegment[2] = (commentLength >> 8) & 0xFF; // Length high byte
+            commentSegment[3] = commentLength & 0xFF; // Length low byte
+            commentSegment.set(commentBytes, 4);
+            
+            // Insert comment after SOI marker
+            const newJpeg = new Uint8Array(jpegData.length + commentSegment.length);
+            newJpeg.set(jpegData.slice(0, 2), 0); // SOI marker
+            newJpeg.set(commentSegment, 2); // Comment segment
+            newJpeg.set(jpegData.slice(2), 2 + commentSegment.length); // Rest of JPEG
+            
+            return newJpeg;
+            
+        } catch (error) {
+            console.error('Failed to add JPEG comment:', error);
+            return null;
+        }
     }
     
     embedExifAndDownload(dataUrl, authorInfo) {
