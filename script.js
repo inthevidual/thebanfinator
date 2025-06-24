@@ -177,32 +177,72 @@ class ImageCombiner {
     
     extractIPTC(file, side) {
         EXIF.getData(file, () => {
-            // Try different metadata fields with proper priority: Creator -> Artist/Author -> Copyright
+            // Try different metadata fields - Creator field can be accessed through different tag names
             let creator = '';
             
-            // Try to get raw metadata - prioritize Creator field
+            // Try to get raw metadata - Creator field might be in different tags
             const rawCreator = EXIF.getTag(file, 'Creator');
+            const rawByline = EXIF.getTag(file, 'By-line'); // IPTC Byline field
+            const rawIPTCByline = EXIF.getTag(file, 'IPTCByline'); // Alternative IPTC access
             const rawArtist = EXIF.getTag(file, 'Artist');
             const rawAuthor = EXIF.getTag(file, 'Author'); 
             const rawCopyright = EXIF.getTag(file, 'Copyright');
             
+            // Also try accessing raw IPTC data if available
+            const allTags = EXIF.getAllTags(file);
+            
             // Debug log the raw values
             console.log('Raw metadata extracted:', {
                 creator: rawCreator,
+                byline: rawByline,
+                iptcByline: rawIPTCByline,
                 artist: rawArtist,
                 author: rawAuthor,
-                copyright: rawCopyright
+                copyright: rawCopyright,
+                allAvailableTags: Object.keys(allTags)
             });
             
-            // Prioritize Creator first, then Artist/Author, then Copyright
-            if (rawCreator && rawCreator.trim()) {
-                creator = this.cleanMetadataString(rawCreator);
-            } else if (rawArtist && rawArtist.trim()) {
-                creator = this.cleanMetadataString(rawArtist);
-            } else if (rawAuthor && rawAuthor.trim()) {
-                creator = this.cleanMetadataString(rawAuthor);
-            } else if (rawCopyright && rawCopyright.trim()) {
-                creator = this.cleanMetadataString(rawCopyright);
+            // Check if there are any IPTC-specific tags in the available tags
+            const iptcTags = Object.keys(allTags).filter(tag => 
+                tag.toLowerCase().includes('creator') || 
+                tag.toLowerCase().includes('byline') ||
+                tag.toLowerCase().includes('iptc')
+            );
+            
+            if (iptcTags.length > 0) {
+                console.log('Found IPTC-related tags:', iptcTags);
+                // Try to get the first IPTC creator-related tag
+                for (const tag of iptcTags) {
+                    const value = EXIF.getTag(file, tag);
+                    if (value && value.trim()) {
+                        creator = this.cleanMetadataString(value);
+                        console.log(`Using IPTC tag "${tag}":`, creator);
+                        break;
+                    }
+                }
+            }
+            
+            // Fallback priority if no IPTC Creator found
+            if (!creator) {
+                if (rawCreator && rawCreator.trim()) {
+                    creator = this.cleanMetadataString(rawCreator);
+                    console.log('Using Creator field:', creator);
+                } else if (rawByline && rawByline.trim()) {
+                    creator = this.cleanMetadataString(rawByline);
+                    console.log('Using By-line field:', creator);
+                } else if (rawIPTCByline && rawIPTCByline.trim()) {
+                    creator = this.cleanMetadataString(rawIPTCByline);
+                    console.log('Using IPTC Byline field:', creator);
+                } else if (rawArtist && rawArtist.trim()) {
+                    creator = this.cleanMetadataString(rawArtist);
+                    console.log('Fallback to Artist field:', creator);
+                } else if (rawAuthor && rawAuthor.trim()) {
+                    creator = this.cleanMetadataString(rawAuthor);
+                    console.log('Fallback to Author field:', creator);
+                } else if (rawCopyright && rawCopyright.trim()) {
+                    creator = this.cleanMetadataString(rawCopyright);
+                    console.log('Fallback to Copyright field:', creator);
+                }
             }
             
             if (side === 'left') {
@@ -211,7 +251,7 @@ class ImageCombiner {
                 this.rightCopyright = creator;
             }
             
-            console.log(`${side} image creator:`, creator);
+            console.log(`${side} image final creator:`, creator);
             this.mergeCopyright();
         });
     }
