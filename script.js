@@ -813,59 +813,71 @@ class ImageCombiner {
         exportCtx.drawImage(this.canvas, 0, 0);
         
         // Export as JPG with EXIF metadata
-        exportCanvas.toBlob((blob) => {
-            if (authorInfo && typeof piexif !== 'undefined') {
-                this.embedExifAndDownload(blob, authorInfo);
-            } else {
-                // Fallback without metadata
+        if (authorInfo && typeof piexif !== 'undefined') {
+            // Get canvas as data URL directly for EXIF processing
+            const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.8);
+            this.embedExifAndDownload(dataUrl, authorInfo);
+        } else {
+            // Fallback without metadata
+            exportCanvas.toBlob((blob) => {
                 this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
-            }
-        }, 'image/jpeg', 0.8);
+            }, 'image/jpeg', 0.8);
+        }
     }
     
-    embedExifAndDownload(blob, authorInfo) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const dataUrl = e.target.result;
-                const jpeg = dataUrl.split(',')[1]; // Remove data:image/jpeg;base64, prefix
-                
-                // Create EXIF data with only reliable fields
-                const exifObj = {
-                    "0th": {
-                        [piexif.ImageIFD.Artist]: authorInfo,
-                        [piexif.ImageIFD.Copyright]: authorInfo,
-                        [piexif.ImageIFD.Software]: "The Banfinator",
-                        [piexif.ImageIFD.DateTime]: new Date().toISOString().replace('T', ' ').substr(0, 19)
-                    }
-                };
-                
-                // Convert EXIF object to binary
-                const exifBinary = piexif.dump(exifObj);
-                
-                // Insert EXIF data into JPEG
-                const newJpeg = piexif.insert(exifBinary, jpeg);
-                
-                // Convert back to blob
-                const byteCharacters = atob(newJpeg);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const newBlob = new Blob([byteArray], { type: 'image/jpeg' });
-                
-                this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
-                
-                console.log('EXIF metadata embedded successfully. Author:', authorInfo);
-                
-            } catch (error) {
-                console.error('Failed to embed EXIF metadata:', error);
-                // Fallback to download without metadata
-                this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
+    embedExifAndDownload(dataUrl, authorInfo) {
+        try {
+            // Extract base64 data from data URL
+            const base64Data = dataUrl.split(',')[1];
+            
+            // Check if this is valid JPEG data by looking at the data URL prefix
+            if (!dataUrl.startsWith('data:image/jpeg')) {
+                throw new Error('Canvas did not produce JPEG data');
             }
-        };
-        reader.readAsDataURL(blob);
+            
+            // Create EXIF data
+            const exifObj = {
+                "0th": {
+                    [piexif.ImageIFD.Artist]: authorInfo,
+                    [piexif.ImageIFD.Copyright]: authorInfo,
+                    [piexif.ImageIFD.Software]: "The Banfinator"
+                }
+            };
+            
+            // Convert EXIF object to binary
+            const exifBinary = piexif.dump(exifObj);
+            
+            // Insert EXIF data into JPEG
+            const newJpegBase64 = piexif.insert(exifBinary, base64Data);
+            
+            // Convert back to blob
+            const byteCharacters = atob(newJpegBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const newBlob = new Blob([byteArray], { type: 'image/jpeg' });
+            
+            this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
+            
+            console.log('EXIF metadata embedded successfully. Author:', authorInfo);
+            
+        } catch (error) {
+            console.error('Failed to embed EXIF metadata:', error);
+            
+            // Fallback: convert dataUrl to blob and download without metadata
+            const byteCharacters = atob(dataUrl.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const fallbackBlob = new Blob([byteArray], { type: 'image/jpeg' });
+            
+            this.downloadBlob(fallbackBlob, 'banfinator_kombinerad_bild.jpg');
+            console.log('Downloaded without EXIF metadata due to error');
+        }
     }
     
     downloadBlob(blob, filename) {
