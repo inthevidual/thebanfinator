@@ -373,6 +373,55 @@ class ImageCombiner {
         }
     }
     
+    drawCanvasForExport(ctx) {
+        // Clear canvas
+        ctx.clearRect(0, 0, 3000, 2000);
+        
+        // Draw white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 3000, 2000);
+        
+        // Draw center divider
+        ctx.fillStyle = 'white';
+        ctx.fillRect(1490, 0, 20, 2000);
+        
+        // Set up clipping for left side
+        if (this.leftImage) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, 1490, 2000);
+            ctx.clip();
+            
+            ctx.drawImage(
+                this.leftImage,
+                this.leftImageData.x,
+                this.leftImageData.y,
+                this.leftImageData.width,
+                this.leftImageData.height
+            );
+            ctx.restore();
+        }
+        
+        // Set up clipping for right side
+        if (this.rightImage) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(1510, 0, 1490, 2000);
+            ctx.clip();
+            
+            ctx.drawImage(
+                this.rightImage,
+                this.rightImageData.x,
+                this.rightImageData.y,
+                this.rightImageData.width,
+                this.rightImageData.height
+            );
+            ctx.restore();
+        }
+        
+        // Note: We do NOT draw selection borders or resize handles for export
+    }
+    
     drawSelectionBorder(imageData) {
         // Calculate visible bounds (clipped to canvas regions)
         let visibleX = imageData.x;
@@ -891,55 +940,6 @@ class ImageCombiner {
         $('#exportBtn').prop('disabled', !hasImages);
     }
     
-    drawCanvasForExport(ctx) {
-        // Clear canvas
-        ctx.clearRect(0, 0, 3000, 2000);
-        
-        // Draw white background
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, 3000, 2000);
-        
-        // Draw center divider
-        ctx.fillStyle = 'white';
-        ctx.fillRect(1490, 0, 20, 2000);
-        
-        // Set up clipping for left side
-        if (this.leftImage) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(0, 0, 1490, 2000);
-            ctx.clip();
-            
-            ctx.drawImage(
-                this.leftImage,
-                this.leftImageData.x,
-                this.leftImageData.y,
-                this.leftImageData.width,
-                this.leftImageData.height
-            );
-            ctx.restore();
-        }
-        
-        // Set up clipping for right side
-        if (this.rightImage) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(1510, 0, 1490, 2000);
-            ctx.clip();
-            
-            ctx.drawImage(
-                this.rightImage,
-                this.rightImageData.x,
-                this.rightImageData.y,
-                this.rightImageData.width,
-                this.rightImageData.height
-            );
-            ctx.restore();
-        }
-        
-        // Note: We do NOT draw selection borders or resize handles for export
-    }
-    
     exportImage() {
         if (!this.leftImage || !this.rightImage) return;
         
@@ -965,7 +965,6 @@ class ImageCombiner {
         }, 'image/jpeg', 0.8);
     }
     
-    embedIptcCreator(blob, creatorInfo) {
     embedIptcCreator(blob, creatorInfo) {
         try {
             // Convert blob to array buffer for manual IPTC injection
@@ -1004,7 +1003,6 @@ class ImageCombiner {
             console.error('Failed to process blob:', error);
             this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
         }
-    }
     }
     
     createIptcWithByline(creatorInfo) {
@@ -1141,72 +1139,6 @@ class ImageCombiner {
         } catch (error) {
             console.error('Failed to insert IPTC into JPEG:', error);
             return null;
-        }
-    }
-    
-    embedExifAndDownload(dataUrl, authorInfo) {
-        try {
-            // Extract base64 data from data URL
-            const base64Data = dataUrl.split(',')[1];
-            
-            // Check if this is valid JPEG data by looking at the data URL prefix
-            if (!dataUrl.startsWith('data:image/jpeg')) {
-                throw new Error('Canvas did not produce JPEG data');
-            }
-            
-            // Try to load existing EXIF data or create new
-            let exifDict;
-            try {
-                exifDict = piexif.load(dataUrl);
-            } catch (e) {
-                // No existing EXIF data, create new structure
-                exifDict = {
-                    "0th": {},
-                    "Exif": {},
-                    "GPS": {},
-                    "1st": {},
-                    "thumbnail": null
-                };
-            }
-            
-            // Set the EXIF data we want
-            exifDict["0th"][piexif.ImageIFD.Artist] = authorInfo;
-            exifDict["0th"][piexif.ImageIFD.Copyright] = authorInfo;
-            exifDict["0th"][piexif.ImageIFD.Software] = "The Banfinator";
-            
-            // Convert EXIF object to binary
-            const exifBinary = piexif.dump(exifDict);
-            
-            // Insert EXIF data into JPEG
-            const newJpegBase64 = piexif.insert(exifBinary, base64Data);
-            
-            // Convert back to blob
-            const byteCharacters = atob(newJpegBase64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const newBlob = new Blob([byteArray], { type: 'image/jpeg' });
-            
-            this.downloadBlob(newBlob, 'banfinator_kombinerad_bild.jpg');
-            
-            console.log('EXIF metadata embedded successfully. Author:', authorInfo);
-            
-        } catch (error) {
-            console.error('Failed to embed EXIF metadata:', error);
-            
-            // Fallback: convert dataUrl to blob and download without metadata
-            const byteCharacters = atob(dataUrl.split(',')[1]);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const fallbackBlob = new Blob([byteArray], { type: 'image/jpeg' });
-            
-            this.downloadBlob(fallbackBlob, 'banfinator_kombinerad_bild.jpg');
-            console.log('Downloaded without EXIF metadata due to error');
         }
     }
     
