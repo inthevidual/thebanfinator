@@ -177,21 +177,64 @@ class ImageCombiner {
     
     extractIPTC(file, side) {
         EXIF.getData(file, () => {
-            // Prioritize Author field, fallback to Copyright if Author is empty/missing
-            let author = EXIF.getTag(file, 'Artist') || EXIF.getTag(file, 'Author') || '';
-            let copyright = EXIF.getTag(file, 'Copyright') || '';
+            // Try different metadata fields with proper encoding handling
+            let author = '';
             
-            // Use Author if available, otherwise use Copyright
-            const metadataValue = author || copyright;
+            // Try to get raw metadata first
+            const rawArtist = EXIF.getTag(file, 'Artist');
+            const rawAuthor = EXIF.getTag(file, 'Author'); 
+            const rawCopyright = EXIF.getTag(file, 'Copyright');
             
-            if (side === 'left') {
-                this.leftCopyright = metadataValue;
-            } else {
-                this.rightCopyright = metadataValue;
+            // Debug log the raw values
+            console.log('Raw metadata extracted:', {
+                artist: rawArtist,
+                author: rawAuthor,
+                copyright: rawCopyright
+            });
+            
+            // Prioritize Author/Artist, then Copyright
+            if (rawArtist && rawArtist.trim()) {
+                author = this.cleanMetadataString(rawArtist);
+            } else if (rawAuthor && rawAuthor.trim()) {
+                author = this.cleanMetadataString(rawAuthor);
+            } else if (rawCopyright && rawCopyright.trim()) {
+                author = this.cleanMetadataString(rawCopyright);
             }
             
+            if (side === 'left') {
+                this.leftCopyright = author;
+            } else {
+                this.rightCopyright = author;
+            }
+            
+            console.log(`${side} image metadata:`, author);
             this.mergeCopyright();
         });
+    }
+    
+    cleanMetadataString(str) {
+        if (!str) return '';
+        
+        // Convert to string if it's not already
+        let cleaned = String(str);
+        
+        // Remove null characters and other control characters
+        cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
+        
+        // Handle potential encoding issues - try to decode if it looks like it was double-encoded
+        try {
+            // If the string contains escape sequences, try to decode them
+            if (cleaned.includes('\\x') || cleaned.includes('%')) {
+                cleaned = decodeURIComponent(cleaned.replace(/\\x/g, '%'));
+            }
+        } catch (e) {
+            // If decoding fails, use the original cleaned string
+        }
+        
+        // Trim whitespace
+        cleaned = cleaned.trim();
+        
+        return cleaned;
     }
     
     mergeCopyright() {
@@ -911,21 +954,32 @@ class ImageCombiner {
     }
     
     createIptcWithByline(authorInfo) {
-        // Create IPTC-IIM data structure
-        // IPTC uses Tag-Length-Value format with record number and dataset number
+        // Create IPTC-IIM data structure with proper UTF-8 encoding
         
+        // Ensure the author info is properly encoded as UTF-8
         const authorBytes = new TextEncoder().encode(authorInfo);
         
         // IPTC Byline tag: Record 2, Dataset 80 (0x50)
-        // Tag format: 0x1C (tag marker) + Record + Dataset + Length + Data
         const iptcEntry = new Uint8Array(5 + authorBytes.length);
         
         iptcEntry[0] = 0x1C; // IPTC tag marker
         iptcEntry[1] = 0x02; // Record 2 (Application Record)
         iptcEntry[2] = 0x50; // Dataset 80 (Byline/Author)
-        iptcEntry[3] = (authorBytes.length >> 8) & 0xFF; // Length high byte
-        iptcEntry[4] = authorBytes.length & 0xFF; // Length low byte
-        iptcEntry.set(authorBytes, 5); // Author data
+        
+        // Handle length encoding properly for IPTC
+        if (authorBytes.length < 32768) {
+            // Standard length encoding (2 bytes)
+            iptcEntry[3] = (authorBytes.length >> 8) & 0xFF; // Length high byte
+            iptcEntry[4] = authorBytes.length & 0xFF; // Length low byte
+            iptcEntry.set(authorBytes, 5); // Author data
+        } else {
+            // Extended length encoding would be needed for very long strings
+            // For now, truncate if too long
+            const truncatedBytes = authorBytes.slice(0, 32767);
+            iptcEntry[3] = (truncatedBytes.length >> 8) & 0xFF;
+            iptcEntry[4] = truncatedBytes.length & 0xFF;
+            iptcEntry.set(truncatedBytes, 5);
+        }
         
         // Also add Software/Program tag (Record 2, Dataset 65)
         const softwareText = "The Banfinator";
@@ -939,11 +993,29 @@ class ImageCombiner {
         softwareEntry[4] = softwareBytes.length & 0xFF; // Length low byte
         softwareEntry.set(softwareBytes, 5); // Software data
         
+        // Add Copyright Notice tag (Record 2, Dataset 116) as well
+        const copyrightBytes = new TextEncoder().encode(authorInfo);
+        const copyrightEntry = new Uint8Array(5 + copyrightBytes.length);
+        
+        copyrightEntry[0] = 0x1C; // IPTC tag marker
+        copyrightEntry[1] = 0x02; // Record 2 (Application Record)
+        copyrightEntry[2] = 0x74; // Dataset 116 (Copyright Notice)
+        copyrightEntry[3] = (copyrightBytes.length >> 8) & 0xFF; // Length high byte
+        copyrightEntry[4] = copyrightBytes.length & 0xFF; // Length low byte
+        copyrightEntry.set(copyrightBytes, 5); // Copyright data
+        
         // Combine IPTC entries
-        const totalLength = iptcEntry.length + softwareEntry.length;
+        const totalLength = iptcEntry.length + softwareEntry.length + copyrightEntry.length;
         const iptcData = new Uint8Array(totalLength);
-        iptcData.set(iptcEntry, 0);
-        iptcData.set(softwareEntry, iptcEntry.length);
+        let offset = 0;
+        
+        iptcData.set(iptcEntry, offset);
+        offset += iptcEntry.length;
+        iptcData.set(softwareEntry, offset);
+        offset += softwareEntry.length;
+        iptcData.set(copyrightEntry, offset);
+        
+        console.log('Created IPTC data for:', authorInfo, 'Length:', authorBytes.length);
         
         return iptcData;
     }
