@@ -64,8 +64,21 @@ class ImageCombiner {
         const zone = $(zoneSelector);
         const input = $(inputSelector);
         
-        zone.on('click', () => input.click());
+        // Make drop zone clickable - trigger file input click
+        zone.on('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            input.trigger('click');
+        });
         
+        // Also handle touch events for mobile devices
+        zone.on('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            input.trigger('click');
+        });
+        
+        // Drag and drop events
         zone.on('dragenter', (e) => {
             e.preventDefault();
             e.stopPropagation();
