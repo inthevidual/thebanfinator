@@ -4,6 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Banfinator - Professionell Bildkombinerare</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="The Banfinator - En professionell webbaserad bildkombinerare för att skapa perfekta bildlayouter med automatisk IPTC-metadata. Dra och släpp JPG-bilder för att kombinera dem till en snygg layout.">
+    <meta name="keywords" content="bildkombinerare, bildeditor, IPTC metadata, bildlayout, webverktyg, fotografi">
+    <meta name="author" content="CP-Tjänst/Jesper Sandström">
+    
+    <!-- Open Graph Meta Tags (Facebook) -->
+    <meta property="og:title" content="The Banfinator - collagemakaren från CP-tjänst">
+    <meta property="og:description" content="Ett nytt och CP sätt att skapa collage">
+    <meta property="og:image" content="./thebanfinator-some.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="The Banfinator">
+    <meta property="og:locale" content="sv_SE">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Banfinator - collagemakaren från CP-tjänst">
+    <meta name="twitter:description" content="Ett nytt och CP sätt att skapa collage">
+    <meta name="twitter:image" content="./thebanfinator-some.jpg">
+    <meta name="twitter:image:alt" content="The Banfinator - collagemakaren från CP-tjänst">
+    
+    <!-- Additional Meta Tags -->
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#21262d">
+    <link rel="canonical" href="">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="banf.svg">
+    <link rel="alternate icon" href="banf.svg">
+    
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="banfinator-styles.css" rel="stylesheet">
@@ -25,7 +58,7 @@
                         <div class="logo-line-1">THE</div>
                         <div class="logo-line-2">BANFINATOR</div>
                         <div class="version-info">v0.666</div>
-                        <div class="tagline">a passion project ❤️ from CP-Tjänst</div>
+                        <div class="tagline">a passion project ❤️from CP-Tjänst</div>
                     </div>
                 </div>
             </div>
@@ -107,13 +140,13 @@
                                 <i class="fas fa-copyright"></i> Upphovsrättsinformation
                             </label>
                             <input type="text" class="form-control" id="copyrightField" 
-                                   placeholder="Upphovsrättsinformation slås samman automatiskt från IPTC-data">
+                                   placeholder="Upphovsrättsinformation slås samman automatiskt, men du kan också fylla i manuellt">
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="d-flex flex-column h-100 justify-content-end">
                             <button class="btn btn-custom btn-switch" id="switchBtn" disabled>
-                                <i class="fas fa-exchange-alt"></i> Byt plats
+                                <i class="fas fa-exchange-alt"></i> Växla Bilder
                             </button>
                             <button class="btn btn-custom btn-export" id="exportBtn" disabled>
                                 <i class="fas fa-download"></i> Exportera JPG
