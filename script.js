@@ -1098,7 +1098,7 @@ class ImageCombiner {
             } else {
                 this.downloadBlob(blob, 'banfinator_kombinerad_bild.jpg');
             }
-        }, 'image/jpeg', 0.8);
+        }, 'image/jpeg', 1.0);
     }
     
     createIptcEntry(record, dataset, dataBytes) {
