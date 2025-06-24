@@ -64,18 +64,41 @@ class ImageCombiner {
         const zone = $(zoneSelector);
         const input = $(inputSelector);
         
+        // Flag to prevent infinite recursion
+        let isClickTriggered = false;
+        
         // Make drop zone clickable - trigger file input click
         zone.on('click', (e) => {
+            // Prevent infinite loop
+            if (isClickTriggered) return;
+            
             e.preventDefault();
             e.stopPropagation();
-            input.trigger('click');
+            
+            isClickTriggered = true;
+            input[0].click(); // Use native click instead of jQuery trigger
+            
+            // Reset flag after a short delay
+            setTimeout(() => {
+                isClickTriggered = false;
+            }, 100);
         });
         
         // Also handle touch events for mobile devices
         zone.on('touchend', (e) => {
+            // Prevent infinite loop
+            if (isClickTriggered) return;
+            
             e.preventDefault();
             e.stopPropagation();
-            input.trigger('click');
+            
+            isClickTriggered = true;
+            input[0].click(); // Use native click instead of jQuery trigger
+            
+            // Reset flag after a short delay
+            setTimeout(() => {
+                isClickTriggered = false;
+            }, 100);
         });
         
         // Drag and drop events
