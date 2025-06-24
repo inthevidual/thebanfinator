@@ -1,4 +1,4 @@
-loadImage(file, side) {
+loadImage(file, side); {
         if (!file.type.match('image/jpeg') && !file.type.match('image/jpg')) {
             alert('Vänligen välj en JPG-bildfil.');
             return;
@@ -1331,91 +1331,6 @@ loadImage(file, side) {
             
         } catch (error) {
             console.error('💥 Failed to insert EXIF into JPEG:', error);
-            return null;
-        }
-    }
-    
-    createIptcWithByline(creatorInfo) {
-        // Create IPTC-IIM data structure exactly like exiftool does
-        
-        // Ensure the creator info is properly encoded as UTF-8
-        const creatorBytes = new TextEncoder().encode(creatorInfo);
-        
-        // Create minimal IPTC structure with only By-line field
-        // This matches what exiftool creates for maximum compatibility
-        
-        // IPTC By-line tag: Record 2, Dataset 80 (0x50) - ONLY this field for compatibility
-        const bylineEntry = new Uint8Array(5 + creatorBytes.length);
-        
-        bylineEntry[0] = 0x1C; // IPTC tag marker
-        bylineEntry[1] = 0x02; // Record 2 (Application Record)
-        bylineEntry[2] = 0x50; // Dataset 80 (By-line)
-        
-        // IPTC uses big-endian length encoding (most significant byte first)
-        bylineEntry[3] = (creatorBytes.length >> 8) & 0xFF; // Length high byte
-        bylineEntry[4] = creatorBytes.length & 0xFF; // Length low byte
-        bylineEntry.set(creatorBytes, 5); // Creator data
-        
-        // For maximum CMS compatibility, create ONLY the By-line field
-        // Additional fields can cause parsing issues in some CMS systems
-        console.log('📝 Created minimal IPTC data with By-line field only:', creatorInfo, 'Byte length:', creatorBytes.length);
-        
-        return bylineEntry;
-    }
-    
-    insertIptcIntoJpeg(jpegBuffer, iptcData) {
-        try {
-            const jpeg = new Uint8Array(jpegBuffer);
-            
-            // Find insertion point after SOI (0xFFD8)
-            let insertPoint = 2;
-            
-            // Look for existing APP13 marker (0xFFED) and remove it if present
-            if (jpeg.length > 4 && jpeg[2] === 0xFF && jpeg[3] === 0xED) {
-                const app13Length = (jpeg[4] << 8) | jpeg[5];
-                insertPoint = 4 + app13Length;
-                console.log('🗑️ Removing existing APP13 segment, length:', app13Length);
-            }
-            
-            // Create APP13 segment with RAW IPTC data (no Photoshop wrapper)
-            // This matches what exiftool creates with -By-line= command
-            
-            // APP13 segment length includes the length field itself (2 bytes)
-            const app13SegmentLength = iptcData.length + 2;
-            
-            // Create APP13 header with raw IPTC data
-            const app13Header = new Uint8Array([
-                0xFF, 0xED, // APP13 marker
-                (app13SegmentLength >> 8) & 0xFF, // Length high byte (big-endian)
-                app13SegmentLength & 0xFF // Length low byte
-            ]);
-            
-            console.log('📦 Creating RAW IPTC APP13 segment (exiftool style):');
-            console.log('- IPTC data:', iptcData.length, 'bytes');
-            console.log('- Total segment:', app13SegmentLength, 'bytes');
-            
-            // Combine APP13 header + raw IPTC data (no Photoshop container)
-            const app13Data = new Uint8Array(app13Header.length + iptcData.length);
-            app13Data.set(app13Header, 0);
-            app13Data.set(iptcData, app13Header.length);
-            
-            // Create new JPEG with raw IPTC
-            const newJpeg = new Uint8Array(jpeg.length - (insertPoint - 2) + app13Data.length);
-            
-            // Copy SOI
-            newJpeg.set(jpeg.slice(0, 2), 0);
-            
-            // Insert APP13 + raw IPTC immediately after SOI
-            newJpeg.set(app13Data, 2);
-            
-            // Copy rest of JPEG (skipping any existing APP13)
-            newJpeg.set(jpeg.slice(insertPoint), 2 + app13Data.length);
-            
-            console.log('✅ Successfully created JPEG with RAW IPTC By-line data (exiftool compatible)');
-            return newJpeg;
-            
-        } catch (error) {
-            console.error('💥 Failed to insert IPTC into JPEG:', error);
             return null;
         }
     }
