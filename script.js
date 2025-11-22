@@ -2,10 +2,14 @@ class ImageCombiner {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d');
+        this.canvasWidth = 3840;
+        this.canvasHeight = 2160;
+        this.dividerWidth = 20;
+        this.splitRatio = 0.5; // 50/50 default
         this.leftImage = null;
         this.rightImage = null;
         this.leftImageData = { x: 0, y: 0, width: 0, height: 0, scale: 1, originalWidth: 0, originalHeight: 0 };
-        this.rightImageData = { x: 1510, y: 0, width: 0, height: 0, scale: 1, originalWidth: 0, originalHeight: 0 };
+        this.rightImageData = { x: 0, y: 0, width: 0, height: 0, scale: 1, originalWidth: 0, originalHeight: 0 };
         this.isDragging = false;
         this.isResizing = false;
         this.dragStartX = 0;
@@ -16,13 +20,15 @@ class ImageCombiner {
         this.resizeStartData = null;
         this.leftCopyright = '';
         this.rightCopyright = '';
-        
+
         this.initializeCanvas();
         this.setupEventListeners();
         this.drawCanvas();
     }
-    
+
     initializeCanvas() {
+        this.canvas.width = this.canvasWidth;
+        this.canvas.height = this.canvasHeight;
         // Scale canvas for display
         this.canvas.style.width = '100%';
         this.canvas.style.height = 'auto';
@@ -51,15 +57,97 @@ class ImageCombiner {
         // Control buttons
         $('#switchBtn').on('click', () => this.switchImages());
         $('#exportBtn').on('click', () => this.exportImage());
-        
+
         // Scale sliders
         $('#leftScaleSlider').on('input', (e) => this.handleScaleSlider(e, 'left'));
         $('#rightScaleSlider').on('input', (e) => this.handleScaleSlider(e, 'right'));
-        
+
+        // Split slider
+        $('#splitSlider').on('input', (e) => this.handleSplitChange(e));
+
         // Directional controls
         $('.dir-btn').on('click', (e) => this.handleDirectionalControl(e));
+
+        this.updateSplitDisplay();
     }
-    
+
+    getDividerX() {
+        return Math.round((this.canvasWidth - this.dividerWidth) * this.splitRatio);
+    }
+
+    getLeftRegion() {
+        return { start: 0, width: this.getDividerX(), height: this.canvasHeight };
+    }
+
+    getRightRegion() {
+        const dividerX = this.getDividerX();
+        return {
+            start: dividerX + this.dividerWidth,
+            width: this.canvasWidth - dividerX - this.dividerWidth,
+            height: this.canvasHeight
+        };
+    }
+
+    getSideFromX(x) {
+        const dividerX = this.getDividerX();
+        if (x < dividerX) return 'left';
+        if (x > dividerX + this.dividerWidth) return 'right';
+        return null;
+    }
+
+    clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    repositionImageToRegion(imageData, oldStart, oldWidth, newStart, newWidth) {
+        if (!imageData.originalWidth) return;
+        const oldCenter = imageData.x + imageData.width / 2;
+        const relative = oldWidth ? (oldCenter - oldStart) / oldWidth : 0.5;
+        const clamped = this.clamp(relative, 0, 1);
+        imageData.x = newStart + clamped * newWidth - imageData.width / 2;
+    }
+
+    centerImageInRegion(imageData, region) {
+        if (!imageData.originalWidth) return;
+        imageData.x = region.start + (region.width - imageData.width) / 2;
+        imageData.y = (region.height - imageData.height) / 2;
+    }
+
+    handleSplitChange(event) {
+        const newRatio = this.clamp(parseInt(event.target.value, 10) / 100, 0.2, 0.8);
+        const oldLeftRegion = this.getLeftRegion();
+        const oldRightRegion = this.getRightRegion();
+
+        this.splitRatio = newRatio;
+
+        const newLeftRegion = this.getLeftRegion();
+        const newRightRegion = this.getRightRegion();
+
+        this.repositionImageToRegion(
+            this.leftImageData,
+            oldLeftRegion.start,
+            oldLeftRegion.width,
+            newLeftRegion.start,
+            newLeftRegion.width
+        );
+        this.repositionImageToRegion(
+            this.rightImageData,
+            oldRightRegion.start,
+            oldRightRegion.width,
+            newRightRegion.start,
+            newRightRegion.width
+        );
+
+        this.updateSplitDisplay();
+        this.drawCanvas();
+    }
+
+    updateSplitDisplay() {
+        const leftPercent = Math.round(this.splitRatio * 100);
+        const rightPercent = 100 - leftPercent;
+        $('#splitValue').text(`${leftPercent}% | ${rightPercent}%`);
+    }
+
     setupDropZone(zoneSelector, inputSelector, side) {
         const zone = $(zoneSelector);
         const input = $(inputSelector);
@@ -162,9 +250,10 @@ class ImageCombiner {
     
     processImage(img, file, side) {
         const imageData = side === 'left' ? this.leftImageData : this.rightImageData;
-        const maxWidth = 1490; // Half canvas minus divider
-        const maxHeight = 2000;
-        
+        const region = side === 'left' ? this.getLeftRegion() : this.getRightRegion();
+        const maxWidth = region.width;
+        const maxHeight = region.height;
+
         // Calculate scale to fill the entire half (center crop)
         const scaleToFillWidth = maxWidth / img.width;
         const scaleToFillHeight = maxHeight / img.height;
@@ -175,10 +264,11 @@ class ImageCombiner {
         imageData.width = img.width * scale;
         imageData.height = img.height * scale;
         imageData.scale = scale;
-        
+
         // Center the image in its half
+        this.centerImageInRegion(imageData, region);
+
         if (side === 'left') {
-            imageData.x = (1490 - imageData.width) / 2;
             this.leftImage = img;
             $('#leftDropZone').addClass('has-image');
             $('#leftImageName').text(file.name);
@@ -186,7 +276,6 @@ class ImageCombiner {
             $('#leftImageInfo').show();
             $('#leftControls').show();
         } else {
-            imageData.x = 1510 + (1490 - imageData.width) / 2;
             this.rightImage = img;
             $('#rightDropZone').addClass('has-image');
             $('#rightImageName').text(file.name);
@@ -194,9 +283,7 @@ class ImageCombiner {
             $('#rightImageInfo').show();
             $('#rightControls').show();
         }
-        
-        imageData.y = (maxHeight - imageData.height) / 2;
-        
+
         // Update scale slider
         const scalePercent = Math.round(scale * 100);
         if (side === 'left') {
@@ -493,21 +580,25 @@ class ImageCombiner {
     }
     
     drawCanvas() {
-        this.ctx.clearRect(0, 0, 3000, 2000);
-        
+        this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+
+        const leftRegion = this.getLeftRegion();
+        const rightRegion = this.getRightRegion();
+        const dividerX = this.getDividerX();
+
         // Draw white background
         this.ctx.fillStyle = 'white';
-        this.ctx.fillRect(0, 0, 3000, 2000);
-        
+        this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+
         // Draw center divider
         this.ctx.fillStyle = 'white';
-        this.ctx.fillRect(1490, 0, 20, 2000);
-        
+        this.ctx.fillRect(dividerX, 0, this.dividerWidth, this.canvasHeight);
+
         // Set up clipping for left side
         if (this.leftImage) {
             this.ctx.save();
             this.ctx.beginPath();
-            this.ctx.rect(0, 0, 1490, 2000);
+            this.ctx.rect(leftRegion.start, 0, leftRegion.width, this.canvasHeight);
             this.ctx.clip();
             
             this.ctx.drawImage(
@@ -524,7 +615,7 @@ class ImageCombiner {
         if (this.rightImage) {
             this.ctx.save();
             this.ctx.beginPath();
-            this.ctx.rect(1510, 0, 1490, 2000);
+            this.ctx.rect(rightRegion.start, 0, rightRegion.width, this.canvasHeight);
             this.ctx.clip();
             
             this.ctx.drawImage(
@@ -540,28 +631,32 @@ class ImageCombiner {
         // Draw selection border and handles if an image is selected
         if (this.selectedImage) {
             const imageData = this.selectedImage === 'left' ? this.leftImageData : this.rightImageData;
-            this.drawSelectionBorder(imageData);
+            this.drawSelectionBorder(imageData, leftRegion, rightRegion);
             this.drawResizeHandles(imageData);
         }
     }
-    
+
     drawCanvasForExport(ctx) {
+        const leftRegion = this.getLeftRegion();
+        const rightRegion = this.getRightRegion();
+        const dividerX = this.getDividerX();
+
         // Clear canvas
-        ctx.clearRect(0, 0, 3000, 2000);
-        
+        ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+
         // Draw white background
         ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, 3000, 2000);
-        
+        ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+
         // Draw center divider
         ctx.fillStyle = 'white';
-        ctx.fillRect(1490, 0, 20, 2000);
-        
+        ctx.fillRect(dividerX, 0, this.dividerWidth, this.canvasHeight);
+
         // Set up clipping for left side
         if (this.leftImage) {
             ctx.save();
             ctx.beginPath();
-            ctx.rect(0, 0, 1490, 2000);
+            ctx.rect(leftRegion.start, 0, leftRegion.width, this.canvasHeight);
             ctx.clip();
             
             ctx.drawImage(
@@ -578,7 +673,7 @@ class ImageCombiner {
         if (this.rightImage) {
             ctx.save();
             ctx.beginPath();
-            ctx.rect(1510, 0, 1490, 2000);
+            ctx.rect(rightRegion.start, 0, rightRegion.width, this.canvasHeight);
             ctx.clip();
             
             ctx.drawImage(
@@ -594,19 +689,19 @@ class ImageCombiner {
         // Note: We do NOT draw selection borders or resize handles for export
     }
     
-    drawSelectionBorder(imageData) {
+    drawSelectionBorder(imageData, leftRegion, rightRegion) {
         // Calculate visible bounds (clipped to canvas regions)
         let visibleX = imageData.x;
         let visibleY = Math.max(0, imageData.y);
         let visibleWidth = imageData.width;
-        let visibleHeight = Math.min(imageData.height, 2000 - visibleY);
-        
+        let visibleHeight = Math.min(imageData.height, this.canvasHeight - visibleY);
+
         if (this.selectedImage === 'left') {
-            visibleX = Math.max(0, imageData.x);
-            visibleWidth = Math.min(imageData.width, 1490 - visibleX);
+            visibleX = Math.max(leftRegion.start, imageData.x);
+            visibleWidth = Math.max(0, Math.min(imageData.width, leftRegion.width - (visibleX - leftRegion.start)));
         } else {
-            visibleX = Math.max(1510, imageData.x);
-            visibleWidth = Math.min(imageData.width, 3000 - visibleX);
+            visibleX = Math.max(rightRegion.start, imageData.x);
+            visibleWidth = Math.max(0, Math.min(imageData.width, rightRegion.width - (visibleX - rightRegion.start)));
         }
         
         if (visibleWidth > 0 && visibleHeight > 0) {
@@ -723,27 +818,16 @@ class ImageCombiner {
     
     handleCanvasClick(e) {
         const pos = this.getMousePos(e);
-        
-        // Determine which side was clicked based on X coordinate
-        if (pos.x < 1490) {
-            // Left side clicked
-            if (this.leftImage) {
-                this.selectedImage = 'left';
-            } else {
-                this.selectedImage = null;
-            }
-        } else if (pos.x > 1510) {
-            // Right side clicked  
-            if (this.rightImage) {
-                this.selectedImage = 'right';
-            } else {
-                this.selectedImage = null;
-            }
+        const side = this.getSideFromX(pos.x);
+
+        if (side === 'left' && this.leftImage) {
+            this.selectedImage = 'left';
+        } else if (side === 'right' && this.rightImage) {
+            this.selectedImage = 'right';
         } else {
-            // Clicked on divider
             this.selectedImage = null;
         }
-        
+
         this.drawCanvas();
     }
     
@@ -776,13 +860,12 @@ class ImageCombiner {
         }
         
         // Check for dragging based on side of canvas
-        if (pos.x < 1490 && this.leftImage) {
-            // Left side
+        const side = this.getSideFromX(pos.x);
+        if (side === 'left' && this.leftImage) {
             this.currentImageSide = 'left';
             this.selectedImage = 'left';
             this.isDragging = true;
-        } else if (pos.x > 1510 && this.rightImage) {
-            // Right side
+        } else if (side === 'right' && this.rightImage) {
             this.currentImageSide = 'right';
             this.selectedImage = 'right';
             this.isDragging = true;
@@ -990,17 +1073,12 @@ class ImageCombiner {
                 break;
             case 'center':
                 // Center the image in its half
-                const maxWidth = 1490;
-                const maxHeight = 2000;
-                if (side === 'left') {
-                    imageData.x = (maxWidth - imageData.width) / 2;
-                } else {
-                    imageData.x = 1510 + (maxWidth - imageData.width) / 2;
-                }
-                imageData.y = (maxHeight - imageData.height) / 2;
+                const region = side === 'left' ? this.getLeftRegion() : this.getRightRegion();
+                imageData.x = region.start + (region.width - imageData.width) / 2;
+                imageData.y = (region.height - imageData.height) / 2;
                 break;
         }
-        
+
         this.drawCanvas();
     }
     
@@ -1011,12 +1089,12 @@ class ImageCombiner {
         let image = null;
         let side = null;
         
-        // Determine which side based on X coordinate
-        if (pos.x < 1490 && this.leftImage) {
+        const sideHit = this.getSideFromX(pos.x);
+        if (sideHit === 'left' && this.leftImage) {
             imageData = this.leftImageData;
             image = this.leftImage;
             side = 'left';
-        } else if (pos.x > 1510 && this.rightImage) {
+        } else if (sideHit === 'right' && this.rightImage) {
             imageData = this.rightImageData;
             image = this.rightImage;
             side = 'right';
@@ -1064,15 +1142,29 @@ class ImageCombiner {
         
         // Swap images
         [this.leftImage, this.rightImage] = [this.rightImage, this.leftImage];
-        
+
         // Swap data and adjust positions
         const tempData = { ...this.leftImageData };
         this.leftImageData = { ...this.rightImageData };
         this.rightImageData = tempData;
-        
-        // Adjust X positions for new sides - no constraints, allow overflow
-        this.leftImageData.x = this.leftImageData.x - 1510;
-        this.rightImageData.x = this.rightImageData.x + 1510;
+
+        const leftRegion = this.getLeftRegion();
+        const rightRegion = this.getRightRegion();
+
+        this.repositionImageToRegion(
+            this.leftImageData,
+            rightRegion.start,
+            rightRegion.width,
+            leftRegion.start,
+            leftRegion.width
+        );
+        this.repositionImageToRegion(
+            this.rightImageData,
+            leftRegion.start,
+            leftRegion.width,
+            rightRegion.start,
+            rightRegion.width
+        );
         
         // Swap copyright info
         [this.leftCopyright, this.rightCopyright] = [this.rightCopyright, this.leftCopyright];
@@ -1117,11 +1209,11 @@ class ImageCombiner {
         
         // Get the copyright/author information from the field
         const authorInfo = $('#copyrightField').val() || '';
-        
+
         // Create a temporary canvas for export
         const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = 3000;
-        exportCanvas.height = 2000;
+        exportCanvas.width = this.canvasWidth;
+        exportCanvas.height = this.canvasHeight;
         const exportCtx = exportCanvas.getContext('2d');
         
         // Draw only the images without any UI elements
