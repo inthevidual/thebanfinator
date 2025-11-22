@@ -297,50 +297,14 @@ body {
 
 .site-footer {
     font-family: 'Fira Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4;
     color: var(--muted);
-    padding: 24px 12px 32px;
+    padding: 10px 12px 12px;
     border-top: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(15, 20, 29, 0.95), rgba(7, 10, 16, 0.9));
-    margin-top: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-}
-
-.footer-brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.footer-mark {
-    width: 48px;
-    height: 48px;
-}
-
-.footer-copy {
-    display: grid;
-    gap: 4px;
-}
-
-.footer-title {
-    color: #ffffff;
-    letter-spacing: 0.08em;
-}
-
-.footer-tagline {
-    color: var(--muted);
-}
-
-.footer-version {
-    color: var(--muted);
-    margin-left: auto;
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(15, 20, 29, 0.92);
+    margin-top: 32px;
+    text-align: center;
 }
 
 @media (max-width: 720px) {
