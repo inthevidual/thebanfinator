@@ -4,176 +4,78 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Banfinator - Professionell Bildkombinerare</title>
-    
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="The Banfinator - En professionell webbaserad bildkombinerare för att skapa perfekta bildlayouter med automatisk IPTC-metadata. Dra och släpp JPG-bilder för att kombinera dem till en snygg layout.">
-    <meta name="keywords" content="bildkombinerare, bildeditor, IPTC metadata, bildlayout, webverktyg, fotografi">
-    <meta name="author" content="CP-Tjänst/Jesper Sandström">
-    
-    <!-- Open Graph Meta Tags (Facebook) -->
-    <meta property="og:title" content="The Banfinator - collagemakaren från CP-tjänst">
-    <meta property="og:description" content="Ett nytt och CP sätt att skapa collage">
-    <meta property="og:image" content="/thebanfinator-some.jpg">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:url" content="">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="The Banfinator">
-    <meta property="og:locale" content="sv_SE">
-    
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="The Banfinator - collagemakaren från CP-tjänst">
-    <meta name="twitter:description" content="Ett nytt och CP sätt att skapa collage">
-    <meta name="twitter:image" content="/thebanfinator-some.jpg">
-    <meta name="twitter:image:alt" content="The Banfinator - collagemakaren från CP-tjänst">
-    
-    <!-- Additional Meta Tags -->
-    <meta name="robots" content="index, follow">
-    <meta name="theme-color" content="#21262d">
-    <link rel="canonical" href="">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="banf.svg">
-    <link rel="alternate icon" href="banf.svg">
-    
+    <meta name="description" content="The Banfinator - en webbaserad bildkombinerare som levererar 3840x2160-kompositioner med exakt vit avdelare och redigerbar byline.">
+    <meta name="robots" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="banfinator-styles.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@500&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="banf.svg?v=0.999b">
+    <link rel="alternate icon" href="banf.svg?v=0.999b">
+    <link rel="stylesheet" href="banfinator-styles.css?v=0.999b">
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="main-container">
-            <!-- Logo Header -->
-            <div class="logo-header">
-                <div class="logo-container">
-                        <div class="logo-image">
-                            <img src="banf.svg" alt="The Banfinator Logo" class="logo-svg">
-                        </div>
-                        <div class="logo-text">
-                            <div class="logo-line-1">THE</div>
-                            <div class="logo-line-2">BANFINATOR</div>
-                            <div class="version-info">v0.999</div>
-                            <div class="tagline">a passion project ❤️from CP-Tjänst</div>
-                        </div>
-                    </div>
-                </div>
-            
-            <div class="subtitle-bar">
-                <p>Dra och släpp JPG-bilder för att kombinera dem till ett collage</p>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="drop-zone" id="leftDropZone">
-                        <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
-                        <h5>Släpp vänster bild här</h5>
-                        <p>JPG-format</p>
-                        <small class="click-hint">eller klicka för att välja</small>
-                        <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" style="display: none;">
-                    </div>
-                    <div class="image-info" id="leftImageInfo" style="display: none;">
-                        <strong>Vänster bild:</strong> <span id="leftImageName"></span><br>
-                        <small>Dimensioner: <span id="leftImageDimensions"></span></small>
-                    </div>
-                    <div class="control-sliders" id="leftControls" style="display: none;">
-                        <div class="slider-group">
-                            <label class="form-label">Skala: <span id="leftScaleValue">100%</span></label>
-                            <input type="range" class="form-range" id="leftScaleSlider" min="10" max="500" value="100">
-                        </div>
-                        <div class="slider-group">
-                            <label class="form-label">Positionskontroller</label>
-                            <div class="directional-controls">
-                                <button class="dir-btn dir-up" data-side="left" data-dir="up">↑</button>
-                                <button class="dir-btn dir-left" data-side="left" data-dir="left">←</button>
-                                <button class="dir-btn dir-center center" data-side="left" data-dir="center">⌂</button>
-                                <button class="dir-btn dir-right" data-side="left" data-dir="right">→</button>
-                                <button class="dir-btn dir-down" data-side="left" data-dir="down">↓</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="drop-zone" id="rightDropZone">
-                        <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
-                        <h5>Släpp höger bild här</h5>
-                        <p>JPG-format</p>
-                        <small class="click-hint">eller klicka för att välja</small>
-                        <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" style="display: none;">
-                    </div>
-                    <div class="image-info" id="rightImageInfo" style="display: none;">
-                        <strong>Höger bild:</strong> <span id="rightImageName"></span><br>
-                        <small>Dimensioner: <span id="rightImageDimensions"></span></small>
-                    </div>
-                    <div class="control-sliders" id="rightControls" style="display: none;">
-                        <div class="slider-group">
-                            <label class="form-label">Skala: <span id="rightScaleValue">100%</span></label>
-                            <input type="range" class="form-range" id="rightScaleSlider" min="10" max="500" value="100">
-                        </div>
-                        <div class="slider-group">
-                            <label class="form-label">Positionskontroller</label>
-                            <div class="directional-controls">
-                                <button class="dir-btn dir-up" data-side="right" data-dir="up">↑</button>
-                                <button class="dir-btn dir-left" data-side="right" data-dir="left">←</button>
-                                <button class="dir-btn dir-center center" data-side="right" data-dir="center">⌂</button>
-                                <button class="dir-btn dir-right" data-side="right" data-dir="right">→</button>
-                                <button class="dir-btn dir-down" data-side="right" data-dir="down">↓</button>
-                            </div>
-                        </div>
-                    </div>
+    <div class="app-shell">
+        <header class="masthead">
+            <div class="brand">
+                <img src="banf.svg?v=0.999b" alt="The Banfinator" class="brand-mark">
+                <div class="brand-copy">
+                    <div class="brand-line">THE BANFINATOR</div>
+                    <div class="brand-sub">drag & drop • 3840x2160 • vit avdelare</div>
+                    <div class="brand-version">v0.999b</div>
                 </div>
             </div>
-            
-            <div class="canvas-container">
-                <div class="split-readout" id="splitValue" aria-live="polite">50% | 50%</div>
-                <div class="canvas-wrapper">
-                    <canvas id="imageCanvas" width="3840" height="2160"></canvas>
+            <p class="lede">Ladda två JPG:er, dra reglaget för horisontell fördelning, justera byline och exportera utan cache-rester.</p>
+        </header>
+
+        <section class="upload-grid">
+            <div class="drop-zone" data-side="left">
+                <div class="drop-copy">
+                    <span class="pill">Vänster</span>
+                    <strong>Släpp bild eller klicka</strong>
+                    <small>JPG • auto-placeras till vänster</small>
                 </div>
-                <div class="split-slider-wrapper">
-                    <input type="range" id="splitSlider" class="form-range" min="20" max="80" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
+                <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" hidden>
+            </div>
+            <div class="drop-zone" data-side="right">
+                <div class="drop-copy">
+                    <span class="pill">Höger</span>
+                    <strong>Släpp bild eller klicka</strong>
+                    <small>JPG • auto-placeras till höger</small>
+                </div>
+                <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" hidden>
+            </div>
+        </section>
+
+        <section class="canvas-stage">
+            <div class="stage-header">
+                <div class="split-readout" id="splitReadout">50% | 50%</div>
+                <div class="split-slider">
+                    <input type="range" id="splitSlider" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
                 </div>
             </div>
-            
-            <div class="control-panel">
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="mb-3">
-                            <label for="copyrightField" class="form-label">
-                                <i class="fas fa-copyright"></i> Upphovsrättsinformation
-                            </label>
-                            <input type="text" class="form-control" id="copyrightField" 
-                                   placeholder="Upphovsrättsinformation slås samman automatiskt, men du kan också fylla i manuellt">
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex flex-column h-100 justify-content-end">
-                            <button class="btn btn-custom btn-switch" id="switchBtn" disabled>
-                                <i class="fas fa-exchange-alt"></i> Växla bilder
-                            </button>
-                            <button class="btn btn-custom btn-export" id="exportBtn" disabled>
-                                <i class="fas fa-download"></i> Exportera JPG
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <div class="canvas-frame">
+                <canvas id="imageCanvas" width="3840" height="2160" role="img" aria-label="Sammanfogad bild"></canvas>
+                <div class="canvas-helper">3840 × 2160 px med 10 px vit avdelare. Dra reglaget ovanför.</div>
             </div>
-        </div>
+        </section>
+
+        <section class="meta-row">
+            <div class="field-group">
+                <label for="bylineInput">Byline / metadata</label>
+                <input type="text" id="bylineInput" placeholder="Redigera byline som bäddas in i exporten">
+            </div>
+            <div class="actions">
+                <button id="exportBtn" class="primary" disabled>Spara sammanslagen JPG</button>
+            </div>
+        </section>
+
+        <p class="footnote">Automatisk vänster-till-höger-sammanslagning med redigerbar byline. Ingen cache från äldre versioner får leva vidare.</p>
     </div>
 
-    <!-- Fixed Footer -->
-    <footer class="fixed-footer">
-        <div class="footer-content">
-            ❤️ & © CP-Tjänst/Jesper Sandström 2025
-        </div>
-    </footer>
-
-    <script src="script.js"></script>
+    <footer class="site-footer">❤️ &copy; CP-Tjänst/Jesper Sandström 2025</footer>
+    <script src="script.js?v=0.999b"></script>
 </body>
 </html>
