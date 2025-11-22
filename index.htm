@@ -37,6 +37,9 @@
     <link rel="icon" type="image/svg+xml" href="banf.svg">
     <link rel="alternate icon" href="banf.svg">
     
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="banfinator-styles.css" rel="stylesheet">
@@ -51,17 +54,17 @@
             <!-- Logo Header -->
             <div class="logo-header">
                 <div class="logo-container">
-                    <div class="logo-image">
-                        <img src="banf.svg" alt="The Banfinator Logo" class="logo-svg">
-                    </div>
-                    <div class="logo-text">
-                        <div class="logo-line-1">THE</div>
-                        <div class="logo-line-2">BANFINATOR</div>
-                        <div class="version-info">v0.670</div>
-                        <div class="tagline">a passion project ❤️from CP-Tjänst</div>
+                        <div class="logo-image">
+                            <img src="banf.svg" alt="The Banfinator Logo" class="logo-svg">
+                        </div>
+                        <div class="logo-text">
+                            <div class="logo-line-1">THE</div>
+                            <div class="logo-line-2">BANFINATOR</div>
+                            <div class="version-info">v0.999</div>
+                            <div class="tagline">a passion project ❤️from CP-Tjänst</div>
+                        </div>
                     </div>
                 </div>
-            </div>
             
             <div class="subtitle-bar">
                 <p>Dra och släpp JPG-bilder för att kombinera dem till ett collage</p>
@@ -129,8 +132,12 @@
             </div>
             
             <div class="canvas-container">
+                <div class="split-readout" id="splitValue" aria-live="polite">50% | 50%</div>
                 <div class="canvas-wrapper">
-                    <canvas id="imageCanvas" width="3000" height="2000"></canvas>
+                    <canvas id="imageCanvas" width="3840" height="2160"></canvas>
+                </div>
+                <div class="split-slider-wrapper">
+                    <input type="range" id="splitSlider" class="form-range" min="20" max="80" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
                 </div>
             </div>
             
