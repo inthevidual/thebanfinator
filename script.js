@@ -107,7 +107,6 @@ class Banfinator {
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillRect(dividerX, 0, this.dividerWidth, height);
 
-        this.drawByline(height);
     }
 
     drawImageToRegion(img, region, canvasHeight) {
@@ -126,27 +125,141 @@ class Banfinator {
         this.ctx.restore();
     }
 
-    drawByline(canvasHeight) {
-        const byline = this.bylineInput.value.trim();
-        if (!byline) return;
-
-        const padding = 28;
-        const barHeight = 72;
-        this.ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        this.ctx.fillRect(0, canvasHeight - barHeight, this.canvas.width, barHeight);
-
-        this.ctx.font = '32px "Fira Mono", monospace';
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(byline, padding, canvasHeight - barHeight / 2);
-    }
-
     export() {
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+        const byline = this.bylineInput.value.trim();
+
+        const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
+        const finalDataUrl = byline ? this.injectXmpByline(baseDataUrl, byline) : baseDataUrl;
+
         link.download = `banfinator_${timestamp}.jpg`;
-        link.href = this.canvas.toDataURL('image/jpeg', 0.95);
+        link.href = finalDataUrl;
         link.click();
+    }
+
+    injectXmpByline(dataUrl, byline) {
+        const jpegBytes = this.dataURLToUint8Array(dataUrl);
+        const segments = this.splitJpegSegments(jpegBytes);
+
+        const xmpPacket = this.buildXmpPacket(byline);
+        const xmpSegment = this.buildApp1Segment(xmpPacket);
+        const xmpIdentifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+
+        const filteredSegments = segments.filter((segment) => {
+            if (segment[0] !== 0xff || segment[1] !== 0xe1) return true;
+            const length = (segment[2] << 8) + segment[3];
+            const content = segment.slice(4, 4 + length - 2);
+            return !this.startsWithArray(content, xmpIdentifier);
+        });
+
+        filteredSegments.splice(1, 0, xmpSegment);
+        const merged = this.mergeSegments(filteredSegments);
+        return this.uint8ArrayToDataURL(merged);
+    }
+
+    buildXmpPacket(byline) {
+        const escaped = this.escapeXml(byline);
+        return (
+            `<?xpacket begin='\ufeff' id='W5M0MpCehiHzreSzNTczkc9d'?>\n` +
+            `<x:xmpmeta xmlns:x='adobe:ns:meta/'>\n` +
+            `<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n` +
+            `<rdf:Description xmlns:dc='http://purl.org/dc/elements/1.1/'>\n` +
+            `<dc:creator><rdf:Seq><rdf:li>${escaped}</rdf:li></rdf:Seq></dc:creator>\n` +
+            `<dc:description><rdf:Alt><rdf:li xml:lang='x-default'>${escaped}</rdf:li></rdf:Alt></dc:description>\n` +
+            `</rdf:Description>\n` +
+            `</rdf:RDF>\n` +
+            `</x:xmpmeta>\n` +
+            `<?xpacket end='w'?>`
+        );
+    }
+
+    buildApp1Segment(xmpPacket) {
+        const encoder = new TextEncoder();
+        const identifier = encoder.encode('http://ns.adobe.com/xap/1.0/\0');
+        const xmpData = encoder.encode(xmpPacket);
+        const contentLength = identifier.length + xmpData.length;
+        const totalLength = contentLength + 2; // length bytes count themselves
+
+        const segment = new Uint8Array(4 + contentLength);
+        segment[0] = 0xff; segment[1] = 0xe1;
+        segment[2] = (totalLength >> 8) & 0xff;
+        segment[3] = totalLength & 0xff;
+        segment.set(identifier, 4);
+        segment.set(xmpData, 4 + identifier.length);
+        return segment;
+    }
+
+    splitJpegSegments(bytes) {
+        if (bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+            throw new Error('Invalid JPEG data');
+        }
+
+        const segments = [bytes.slice(0, 2)];
+        let offset = 2;
+
+        while (offset < bytes.length) {
+            if (bytes[offset] !== 0xff) break;
+            const marker = bytes[offset + 1];
+            if (marker === 0xda) { // SOS
+                segments.push(bytes.slice(offset));
+                break;
+            }
+
+            const length = (bytes[offset + 2] << 8) + bytes[offset + 3];
+            const end = offset + 2 + length;
+            segments.push(bytes.slice(offset, end));
+            offset = end;
+        }
+
+        return segments;
+    }
+
+    mergeSegments(segments) {
+        const totalLength = segments.reduce((sum, seg) => sum + seg.length, 0);
+        const merged = new Uint8Array(totalLength);
+        let offset = 0;
+        segments.forEach((seg) => {
+            merged.set(seg, offset);
+            offset += seg.length;
+        });
+        return merged;
+    }
+
+    dataURLToUint8Array(dataUrl) {
+        const base64 = dataUrl.split(',')[1];
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    uint8ArrayToDataURL(bytes) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+        return `data:image/jpeg;base64,${base64}`;
+    }
+
+    startsWithArray(buffer, prefix) {
+        if (buffer.length < prefix.length) return false;
+        for (let i = 0; i < prefix.length; i++) {
+            if (buffer[i] !== prefix[i]) return false;
+        }
+        return true;
+    }
+
+    escapeXml(value) {
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
     }
 }
 
