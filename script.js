@@ -1,7 +1,7 @@
 class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -180,7 +180,7 @@ class Banfinator {
     export() {
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-        const byline = this.bylineInput.value.trim();
+        const byline = this.sanitizeBylineValue(this.bylineInput.value);
 
         const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
         const finalDataUrl = byline ? this.injectXmpByline(baseDataUrl, byline) : baseDataUrl;
@@ -264,7 +264,7 @@ class Banfinator {
             const bytes = new Uint8Array(buffer);
             const xmp = this.readXmpPacket(bytes);
             const parsed = xmp ? this.extractByline(xmp) : '';
-            this.bylineSources[side] = parsed || '';
+            this.bylineSources[side] = this.sanitizeBylineValue(parsed || '');
             this.updateBylineField();
         } catch (err) {
             console.warn('Metadata read skipped', err);
@@ -300,7 +300,8 @@ class Banfinator {
 
     updateBylineField() {
         const combined = this.mergeBylines(this.bylineSources.left, this.bylineSources.right);
-        if (!this.bylineDirty || this.bylineInput.value.trim() === '') {
+        const cleanCurrent = this.sanitizeBylineValue(this.bylineInput.value);
+        if (!this.bylineDirty || cleanCurrent === '') {
             this.bylineInput.value = combined;
         }
     }
@@ -431,17 +432,26 @@ class Banfinator {
     }
 
     mergeBylines(left, right) {
-        const normalizedLeft = this.normalizeBureauSpacing((left || '').trim());
-        const normalizedRight = this.normalizeBureauSpacing((right || '').trim());
+        const normalizedLeft = this.normalizeBureauSpacing(this.sanitizeBylineValue(left));
+        const normalizedRight = this.normalizeBureauSpacing(this.sanitizeBylineValue(right));
         const entries = [normalizedLeft, normalizedRight].filter(Boolean);
         if (!entries.length) return '';
 
         const collapsed = this.collapseDuplicateBureaus(entries);
-        return collapsed.join('/');
+        return this.sanitizeBylineValue(collapsed.join('/'));
+    }
+
+    sanitizeBylineValue(value) {
+        const trimmed = (value || '').trim();
+        if (!trimmed) return '';
+        const compactedSlashes = trimmed.replace(/\s*\/\s*/g, '/');
+        const collapsedSpaces = compactedSlashes.replace(/\s{2,}/g, ' ');
+        return collapsedSpaces.trim();
     }
 
     normalizeBureauSpacing(value) {
-        return value.replace(/\/\s*(TT|AFP|NTB|AP)\b/gi, '/$1');
+        if (!value) return '';
+        return value.replace(/\s*\/(TT|AFP|NTB|AP)\b/gi, '/$1');
     }
 
     collapseDuplicateBureaus(entries) {
