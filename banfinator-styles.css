@@ -1,10 +1,10 @@
 :root {
-    --bg: #0e121b;
-    --panel: #151b26;
-    --border: #1f2532;
-    --accent: #8ae0ff;
-    --text: #e6edf3;
-    --muted: #9fb2c8;
+    --bg: #0f1115;
+    --panel: #171a20;
+    --border: #262a33;
+    --accent: #d8d8d8;
+    --text: #f3f3f3;
+    --muted: #9a9da6;
     --divider: #ffffff;
     --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
@@ -14,8 +14,8 @@
 body {
     margin: 0;
     font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: radial-gradient(circle at 20% 20%, rgba(138, 224, 255, 0.08), transparent 30%),
-                radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.05), transparent 25%),
+    background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.03), transparent 32%),
+                radial-gradient(circle at 78% 8%, rgba(0, 0, 0, 0.12), transparent 28%),
                 var(--bg);
     color: var(--text);
     min-height: 100vh;
@@ -41,8 +41,8 @@ body {
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 12% 12%, rgba(138, 224, 255, 0.08), transparent 35%),
-                radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.05), transparent 30%);
+    background: radial-gradient(circle at 12% 12%, rgba(255, 255, 255, 0.04), transparent 36%),
+                radial-gradient(circle at 88% 8%, rgba(0, 0, 0, 0.14), transparent 32%);
     opacity: 0.9;
     pointer-events: none;
 }
@@ -65,13 +65,14 @@ body {
 .brand-copy {
     display: grid;
     gap: 6px;
+    font-family: 'Fira Mono', monospace;
 }
 
 .brand-line {
     font-weight: 800;
     letter-spacing: 0.08em;
     font-size: 2.4rem;
-    color: #ffffff;
+    color: #f8f8f8;
     text-transform: uppercase;
     line-height: 1.1;
 }
@@ -133,13 +134,13 @@ body {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(138, 224, 255, 0.08), transparent);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent);
     opacity: 0;
     transition: opacity 0.2s ease;
 }
 
 .drop-zone:hover {
-    border-color: #c0f3ff;
+    border-color: #dcdcdc;
     transform: translateY(-2px);
 }
 
@@ -166,9 +167,9 @@ body {
     padding: 6px 10px;
     font-size: 0.8rem;
     border-radius: 999px;
-    background: rgba(138, 224, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
     color: var(--accent);
-    border: 1px solid rgba(138, 224, 255, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .split-controls {
@@ -188,8 +189,8 @@ body {
 .split-readout {
     font-family: 'Fira Mono', monospace;
     color: var(--accent);
-    background: rgba(138, 224, 255, 0.1);
-    border: 1px solid rgba(138, 224, 255, 0.25);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
     padding: 8px 12px;
 }
@@ -215,7 +216,7 @@ body {
 
 .canvas-frame {
     position: relative;
-    background: #0b0f17;
+    background: #0e1014;
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 12px;
@@ -273,12 +274,12 @@ body {
     padding: 12px 18px;
     border-radius: 12px;
     border: none;
-    background: linear-gradient(135deg, #8ae0ff, #6fc7ff);
-    color: #081018;
+    background: linear-gradient(135deg, #f0f0f0, #cfcfcf);
+    color: #0e0e10;
     font-weight: 700;
     cursor: pointer;
     min-width: 220px;
-    box-shadow: 0 12px 30px rgba(138, 224, 255, 0.35);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -297,12 +298,12 @@ body {
 
 .site-footer {
     font-family: 'Fira Mono', monospace;
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.4;
-    color: var(--muted);
-    padding: 10px 12px 12px;
+    color: #7d8088;
+    padding: 12px 14px 14px;
     border-top: 1px solid var(--border);
-    background: rgba(15, 20, 29, 0.92);
+    background: rgba(12, 14, 18, 0.94);
     margin-top: 32px;
     text-align: center;
 }
