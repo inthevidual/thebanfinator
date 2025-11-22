@@ -133,21 +133,18 @@ body {
     border: 1px solid rgba(138, 224, 255, 0.35);
 }
 
-.canvas-stage {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 18px;
-    box-shadow: var(--shadow);
-}
-
-.stage-header {
+.split-controls {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    margin: 18px 0 12px;
 }
 
 .split-readout {
@@ -167,6 +164,15 @@ body {
 #splitSlider {
     width: 100%;
     accent-color: var(--accent);
+    writing-mode: horizontal-tb;
+}
+
+.canvas-stage {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: var(--shadow);
 }
 
 .canvas-frame {
@@ -252,12 +258,22 @@ body {
 }
 
 .site-footer {
-    text-align: center;
     color: var(--muted);
     padding: 24px 12px 32px;
     border-top: 1px solid var(--border);
     background: rgba(0, 0, 0, 0.2);
     margin-top: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.footer-version {
+    font-family: 'Fira Mono', monospace;
+    color: var(--accent);
+    margin-left: auto;
 }
 
 @media (max-width: 720px) {
@@ -268,4 +284,5 @@ body {
     .actions { justify-content: stretch; }
 
     .primary { width: 100%; }
+
 }

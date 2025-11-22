@@ -12,19 +12,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@500&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="banf.svg?v=0.999b">
-    <link rel="alternate icon" href="banf.svg?v=0.999b">
-    <link rel="stylesheet" href="banfinator-styles.css?v=0.999b">
+    <link rel="icon" type="image/svg+xml" href="banf.svg?v=2025.11">
+    <link rel="alternate icon" href="banf.svg?v=2025.11">
+    <link rel="stylesheet" href="banfinator-styles.css?v=2025.11">
 </head>
 <body>
     <div class="app-shell">
         <header class="masthead">
             <div class="brand">
-                <img src="banf.svg?v=0.999b" alt="The Banfinator" class="brand-mark">
+                <img src="banf.svg?v=2025.11" alt="The Banfinator" class="brand-mark">
                 <div class="brand-copy">
                     <div class="brand-line">THE BANFINATOR</div>
                     <div class="brand-sub">drag & drop • 3840x2160 • vit avdelare</div>
-                    <div class="brand-version">v0.999b</div>
+                    <div class="brand-version">v2025.11</div>
                 </div>
             </div>
             <p class="lede">Ladda två JPG:er, dra reglaget för horisontell fördelning, justera byline och exportera utan cache-rester.</p>
@@ -49,13 +49,14 @@
             </div>
         </section>
 
-        <section class="canvas-stage">
-            <div class="stage-header">
-                <div class="split-readout" id="splitReadout">50% | 50%</div>
-                <div class="split-slider">
-                    <input type="range" id="splitSlider" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
-                </div>
+        <section class="split-controls" aria-label="Justera horisontell fördelning">
+            <div class="split-readout" id="splitReadout">50% | 50%</div>
+            <div class="split-slider">
+                <input type="range" id="splitSlider" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
             </div>
+        </section>
+
+        <section class="canvas-stage">
             <div class="canvas-frame">
                 <canvas id="imageCanvas" width="3840" height="2160" role="img" aria-label="Sammanfogad bild"></canvas>
                 <div class="canvas-helper">3840 × 2160 px med 10 px vit avdelare. Dra reglaget ovanför.</div>
@@ -75,7 +76,10 @@
         <p class="footnote">Automatisk vänster-till-höger-sammanslagning med redigerbar byline. Ingen cache från äldre versioner får leva vidare.</p>
     </div>
 
-    <footer class="site-footer">❤️ &copy; CP-Tjänst/Jesper Sandström 2025</footer>
-    <script src="script.js?v=0.999b"></script>
+    <footer class="site-footer">
+        <span class="footer-credit">❤️ &copy; CP-Tjänst/Jesper Sandström 2025</span>
+        <span class="footer-version">v2025.11</span>
+    </footer>
+    <script src="script.js?v=2025.11"></script>
 </body>
 </html>
