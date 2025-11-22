@@ -214,6 +214,54 @@ body {
     box-shadow: var(--shadow);
 }
 
+.tuning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 14px 0 8px;
+}
+
+.tuning-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+}
+
+.tuning-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.tuning-label {
+    display: block;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+.tuning-card input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+}
+
+.ghost {
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.ghost:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+}
+
 .canvas-frame {
     position: relative;
     background: #0e1014;

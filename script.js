@@ -8,7 +8,22 @@ class Banfinator {
         this.bylineInput = document.getElementById('bylineInput');
         this.leftInput = document.getElementById('leftFileInput');
         this.rightInput = document.getElementById('rightFileInput');
+        this.zoomInputs = {
+            left: document.getElementById('leftZoom'),
+            right: document.getElementById('rightZoom')
+        };
+        this.resetButtons = {
+            left: document.querySelector('[data-reset="left"]'),
+            right: document.querySelector('[data-reset="right"]')
+        };
         this.images = { left: null, right: null };
+        this.transforms = {
+            left: { scale: 1, offsetX: 0, offsetY: 0 },
+            right: { scale: 1, offsetX: 0, offsetY: 0 }
+        };
+        this.bylineSources = { left: '', right: '' };
+        this.bylineDirty = false;
+        this.dragState = null;
         this.ratio = 0.5;
         this.dividerWidth = 10;
         this.canvas.width = 3840;
@@ -32,7 +47,25 @@ class Banfinator {
         this.setupDropZone(document.querySelector('[data-side="left"]'), this.leftInput, 'left');
         this.setupDropZone(document.querySelector('[data-side="right"]'), this.rightInput, 'right');
 
-        this.bylineInput.addEventListener('input', () => this.draw());
+        this.bylineInput.addEventListener('input', () => {
+            this.bylineDirty = true;
+            this.draw();
+        });
+
+        Object.entries(this.zoomInputs).forEach(([side, input]) => {
+            input.addEventListener('input', (e) => {
+                this.setZoom(side, parseFloat(e.target.value));
+            });
+        });
+
+        Object.entries(this.resetButtons).forEach(([side, btn]) => {
+            btn.addEventListener('click', () => this.resetView(side));
+        });
+
+        this.canvas.addEventListener('pointerdown', (e) => this.startDrag(e));
+        this.canvas.addEventListener('pointermove', (e) => this.handleDrag(e));
+        this.canvas.addEventListener('pointerup', (e) => this.stopDrag(e));
+        this.canvas.addEventListener('pointerleave', (e) => this.stopDrag(e));
     }
 
     clearCaches() {
@@ -51,18 +84,9 @@ class Banfinator {
         const handleFiles = (files) => {
             const file = files?.[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-                const img = new Image();
-                img.onload = () => {
-                    this.images[side] = img;
-                    zone.classList.add('loaded');
-                    this.updateButtonState();
-                    this.draw();
-                };
-                img.src = `${reader.result}#${Date.now()}`; // ensure cache busting per load
-            };
-            reader.readAsDataURL(file);
+
+            this.loadImage(file, side, zone);
+            this.loadBylineFromFile(file, side);
         };
 
         zone.addEventListener('click', () => input.click());
@@ -101,28 +125,53 @@ class Banfinator {
         const leftRegion = { x: 0, width: dividerX };
         const rightRegion = { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth };
 
-        this.drawImageToRegion(this.images.left, leftRegion, height);
-        this.drawImageToRegion(this.images.right, rightRegion, height);
+        this.drawImageToRegion(this.images.left, leftRegion, height, 'left');
+        this.drawImageToRegion(this.images.right, rightRegion, height, 'right');
 
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillRect(dividerX, 0, this.dividerWidth, height);
 
     }
 
-    drawImageToRegion(img, region, canvasHeight) {
+    drawImageToRegion(img, region, canvasHeight, side) {
         if (!img) return;
-        const scale = Math.max(region.width / img.width, canvasHeight / img.height);
-        const drawWidth = img.width * scale;
-        const drawHeight = img.height * scale;
-        const dx = region.x + (region.width - drawWidth) / 2;
-        const dy = (canvasHeight - drawHeight) / 2;
+        const metrics = this.computeBaseMetrics(img, region, canvasHeight, side);
+        if (!metrics) return;
+        const offsets = this.clampOffsetsForRegion(this.transforms[side].offsetX, this.transforms[side].offsetY, metrics, region, canvasHeight);
+        this.transforms[side].offsetX = offsets.x;
+        this.transforms[side].offsetY = offsets.y;
+        const dx = metrics.dxBase + offsets.x;
+        const dy = metrics.dyBase + offsets.y;
 
         this.ctx.save();
         this.ctx.beginPath();
         this.ctx.rect(region.x, 0, region.width, canvasHeight);
         this.ctx.clip();
-        this.ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
+        this.ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
         this.ctx.restore();
+    }
+
+    computeBaseMetrics(img, region, canvasHeight, side) {
+        const baseScale = Math.max(region.width / img.width, canvasHeight / img.height);
+        const scale = baseScale * this.transforms[side].scale;
+        const drawWidth = img.width * scale;
+        const drawHeight = img.height * scale;
+        const dxBase = region.x + (region.width - drawWidth) / 2;
+        const dyBase = (canvasHeight - drawHeight) / 2;
+
+        return { drawWidth, drawHeight, dxBase, dyBase };
+    }
+
+    clampOffsetsForRegion(offsetX, offsetY, metrics, region, canvasHeight) {
+        const maxOffsetX = region.x - metrics.dxBase;
+        const minOffsetX = region.x + region.width - (metrics.dxBase + metrics.drawWidth);
+        const maxOffsetY = 0 - metrics.dyBase;
+        const minOffsetY = canvasHeight - (metrics.dyBase + metrics.drawHeight);
+
+        return {
+            x: Math.min(maxOffsetX, Math.max(minOffsetX, offsetX)),
+            y: Math.min(maxOffsetY, Math.max(minOffsetY, offsetY))
+        };
     }
 
     export() {
@@ -188,6 +237,152 @@ class Banfinator {
         segment.set(identifier, 4);
         segment.set(xmpData, 4 + identifier.length);
         return segment;
+    }
+
+    loadImage(file, side, zone) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                this.images[side] = img;
+                this.resetView(side, { silent: true });
+                zone.classList.add('loaded');
+                this.updateButtonState();
+                this.draw();
+            };
+            img.src = `${reader.result}#${Date.now()}`; // ensure cache busting per load
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async loadBylineFromFile(file, side) {
+        try {
+            const buffer = await file.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const xmp = this.readXmpPacket(bytes);
+            const parsed = xmp ? this.extractByline(xmp) : '';
+            this.bylineSources[side] = parsed || '';
+            this.updateBylineField();
+        } catch (err) {
+            console.warn('Metadata read skipped', err);
+        }
+    }
+
+    readXmpPacket(bytes) {
+        let segments;
+        try {
+            segments = this.splitJpegSegments(bytes);
+        } catch (err) {
+            return null;
+        }
+
+        const identifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+        for (const segment of segments) {
+            if (segment[0] !== 0xff || segment[1] !== 0xe1) continue;
+            const length = (segment[2] << 8) + segment[3];
+            const content = segment.slice(4, 4 + length - 2);
+            if (!this.startsWithArray(content, identifier)) continue;
+            const payload = content.slice(identifier.length);
+            return new TextDecoder().decode(payload);
+        }
+        return null;
+    }
+
+    extractByline(xmp) {
+        const creatorMatch = xmp.match(/<dc:creator[^>]*>\s*<rdf:Seq>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
+        const descriptionMatch = xmp.match(/<dc:description[^>]*>\s*<rdf:Alt>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
+        const raw = creatorMatch?.[1] || descriptionMatch?.[1] || '';
+        return this.unescapeXml(raw.trim());
+    }
+
+    updateBylineField() {
+        const combined = [...new Set([this.bylineSources.left, this.bylineSources.right].filter(Boolean))].join(' | ');
+        if (!this.bylineDirty || this.bylineInput.value.trim() === '') {
+            this.bylineInput.value = combined;
+        }
+    }
+
+    setZoom(side, value) {
+        const clamped = Math.min(3, Math.max(1, value));
+        this.transforms[side].scale = clamped;
+        this.setTransformOffset(side, this.transforms[side].offsetX, this.transforms[side].offsetY);
+        this.draw();
+    }
+
+    resetView(side, { silent = false } = {}) {
+        this.transforms[side] = { scale: 1, offsetX: 0, offsetY: 0 };
+        if (this.zoomInputs[side]) {
+            this.zoomInputs[side].value = 1;
+        }
+        if (!silent) {
+            this.draw();
+        }
+    }
+
+    startDrag(event) {
+        if (!this.images.left && !this.images.right) return;
+        const point = this.getCanvasPoint(event);
+        const dividerX = Math.round(this.ratio * (this.canvas.width - this.dividerWidth));
+        const side = point.x < dividerX ? 'left' : (point.x > dividerX + this.dividerWidth ? 'right' : null);
+        if (!side || !this.images[side]) return;
+
+        this.dragState = {
+            pointerId: event.pointerId,
+            side,
+            startX: point.x,
+            startY: point.y,
+            originX: this.transforms[side].offsetX,
+            originY: this.transforms[side].offsetY
+        };
+
+        this.canvas.setPointerCapture(event.pointerId);
+    }
+
+    handleDrag(event) {
+        if (!this.dragState || event.pointerId !== this.dragState.pointerId) return;
+        const point = this.getCanvasPoint(event);
+        const dx = point.x - this.dragState.startX;
+        const dy = point.y - this.dragState.startY;
+        const side = this.dragState.side;
+
+        this.setTransformOffset(side, this.dragState.originX + dx, this.dragState.originY + dy);
+        this.draw();
+    }
+
+    stopDrag(event) {
+        if (!this.dragState) return;
+        if (event && event.pointerId !== this.dragState.pointerId) return;
+        this.canvas.releasePointerCapture(this.dragState.pointerId);
+        this.dragState = null;
+    }
+
+    getCanvasPoint(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+            x: (event.clientX - rect.left) * scaleX,
+            y: (event.clientY - rect.top) * scaleY
+        };
+    }
+
+    setTransformOffset(side, offsetX, offsetY) {
+        const img = this.images[side];
+        if (!img) return;
+        const region = this.getRegionForSide(side);
+        const metrics = this.computeBaseMetrics(img, region, this.canvas.height, side);
+        const clamped = this.clampOffsetsForRegion(offsetX, offsetY, metrics, region, this.canvas.height);
+        this.transforms[side].offsetX = clamped.x;
+        this.transforms[side].offsetY = clamped.y;
+    }
+
+    getRegionForSide(side) {
+        const width = this.canvas.width;
+        const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
+        if (side === 'left') {
+            return { x: 0, width: dividerX };
+        }
+        return { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth };
     }
 
     splitJpegSegments(bytes) {
@@ -260,6 +455,15 @@ class Banfinator {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&apos;');
+    }
+
+    unescapeXml(value) {
+        return value
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/&amp;/g, '&');
     }
 }
 
