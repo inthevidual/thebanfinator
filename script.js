@@ -94,7 +94,7 @@ class Banfinator {
 
     draw() {
         const { width, height } = this.canvas;
-        this.ctx.fillStyle = '#0b0f17';
+        this.ctx.fillStyle = '#0c0e12';
         this.ctx.fillRect(0, 0, width, height);
 
         const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
@@ -117,7 +117,13 @@ class Banfinator {
         const drawHeight = img.height * scale;
         const dx = region.x + (region.width - drawWidth) / 2;
         const dy = (canvasHeight - drawHeight) / 2;
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.rect(region.x, 0, region.width, canvasHeight);
+        this.ctx.clip();
         this.ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
+        this.ctx.restore();
     }
 
     drawByline(canvasHeight) {
