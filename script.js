@@ -6,6 +6,7 @@ class Banfinator {
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
         this.bylineInput = document.getElementById('bylineInput');
+        this.swapBtn = document.getElementById('swapSides');
         this.leftInput = document.getElementById('leftFileInput');
         this.rightInput = document.getElementById('rightFileInput');
         this.zoomInputs = {
@@ -43,6 +44,7 @@ class Banfinator {
         });
 
         this.exportBtn.addEventListener('click', () => this.export());
+        this.swapBtn.addEventListener('click', () => this.swapSides());
 
         this.setupDropZone(document.querySelector('[data-side="left"]'), this.leftInput, 'left');
         this.setupDropZone(document.querySelector('[data-side="right"]'), this.rightInput, 'right');
@@ -66,6 +68,7 @@ class Banfinator {
         this.canvas.addEventListener('pointermove', (e) => this.handleDrag(e));
         this.canvas.addEventListener('pointerup', (e) => this.stopDrag(e));
         this.canvas.addEventListener('pointerleave', (e) => this.stopDrag(e));
+        this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
     }
 
     clearCaches() {
@@ -151,15 +154,15 @@ class Banfinator {
         this.ctx.restore();
     }
 
-    computeBaseMetrics(img, region, canvasHeight, side) {
+    computeBaseMetrics(img, region, canvasHeight, side, scaleOverride = null) {
         const baseScale = Math.max(region.width / img.width, canvasHeight / img.height);
-        const scale = baseScale * this.transforms[side].scale;
+        const scale = baseScale * (scaleOverride ?? this.transforms[side].scale);
         const drawWidth = img.width * scale;
         const drawHeight = img.height * scale;
         const dxBase = region.x + (region.width - drawWidth) / 2;
         const dyBase = (canvasHeight - drawHeight) / 2;
 
-        return { drawWidth, drawHeight, dxBase, dyBase };
+        return { drawWidth, drawHeight, dxBase, dyBase, scale };
     }
 
     clampOffsetsForRegion(offsetX, offsetY, metrics, region, canvasHeight) {
@@ -296,7 +299,7 @@ class Banfinator {
     }
 
     updateBylineField() {
-        const combined = [...new Set([this.bylineSources.left, this.bylineSources.right].filter(Boolean))].join(' | ');
+        const combined = this.mergeBylines(this.bylineSources.left, this.bylineSources.right);
         if (!this.bylineDirty || this.bylineInput.value.trim() === '') {
             this.bylineInput.value = combined;
         }
@@ -306,6 +309,9 @@ class Banfinator {
         const clamped = Math.min(3, Math.max(1, value));
         this.transforms[side].scale = clamped;
         this.setTransformOffset(side, this.transforms[side].offsetX, this.transforms[side].offsetY);
+        if (this.zoomInputs[side]) {
+            this.zoomInputs[side].value = clamped;
+        }
         this.draw();
     }
 
@@ -356,6 +362,19 @@ class Banfinator {
         this.dragState = null;
     }
 
+    handleWheel(event) {
+        if (!this.images.left && !this.images.right) return;
+        event.preventDefault();
+
+        const point = this.getCanvasPoint(event);
+        const dividerX = Math.round(this.ratio * (this.canvas.width - this.dividerWidth));
+        const side = point.x < dividerX ? 'left' : (point.x > dividerX + this.dividerWidth ? 'right' : null);
+        if (!side || !this.images[side]) return;
+
+        const delta = -event.deltaY * 0.0015;
+        this.zoomAtPoint(side, delta, point);
+    }
+
     getCanvasPoint(event) {
         const rect = this.canvas.getBoundingClientRect();
         const scaleX = this.canvas.width / rect.width;
@@ -383,6 +402,73 @@ class Banfinator {
             return { x: 0, width: dividerX };
         }
         return { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth };
+    }
+
+    zoomAtPoint(side, delta, point) {
+        const img = this.images[side];
+        if (!img) return;
+
+        const currentScale = this.transforms[side].scale;
+        const targetScale = Math.min(3, Math.max(1, currentScale * (1 + delta)));
+        if (targetScale === currentScale) return;
+
+        const region = this.getRegionForSide(side);
+        const currentMetrics = this.computeBaseMetrics(img, region, this.canvas.height, side, currentScale);
+        const newMetrics = this.computeBaseMetrics(img, region, this.canvas.height, side, targetScale);
+
+        const imageX = (point.x - (currentMetrics.dxBase + this.transforms[side].offsetX)) / currentMetrics.scale;
+        const imageY = (point.y - (currentMetrics.dyBase + this.transforms[side].offsetY)) / currentMetrics.scale;
+
+        const newOffsetX = point.x - (imageX * newMetrics.scale) - newMetrics.dxBase;
+        const newOffsetY = point.y - (imageY * newMetrics.scale) - newMetrics.dyBase;
+
+        this.transforms[side].scale = targetScale;
+        this.setTransformOffset(side, newOffsetX, newOffsetY);
+        if (this.zoomInputs[side]) {
+            this.zoomInputs[side].value = targetScale;
+        }
+        this.draw();
+    }
+
+    mergeBylines(left, right) {
+        const normalizedLeft = this.normalizeBureauSpacing((left || '').trim());
+        const normalizedRight = this.normalizeBureauSpacing((right || '').trim());
+        const entries = [normalizedLeft, normalizedRight].filter(Boolean);
+        if (!entries.length) return '';
+
+        const collapsed = this.collapseDuplicateBureaus(entries);
+        return collapsed.join('/');
+    }
+
+    normalizeBureauSpacing(value) {
+        return value.replace(/\/\s*(TT|AFP|NTB|AP)\b/gi, '/$1');
+    }
+
+    collapseDuplicateBureaus(entries) {
+        if (entries.length < 2) return entries;
+        const bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
+        const leftMatch = entries[0].match(bureauRegex);
+        const rightMatch = entries[1].match(bureauRegex);
+
+        if (leftMatch && rightMatch && leftMatch[1].toUpperCase() === rightMatch[1].toUpperCase()) {
+            const bureau = rightMatch[1].toUpperCase();
+            entries = [...entries];
+            entries[0] = entries[0].replace(bureauRegex, '');
+            entries[1] = entries[1].replace(bureauRegex, `/${bureau}`);
+        }
+
+        return entries;
+    }
+
+    swapSides() {
+        [this.images.left, this.images.right] = [this.images.right, this.images.left];
+        [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
+        [this.transforms.left, this.transforms.right] = [this.transforms.right, this.transforms.left];
+
+        this.setZoom('left', this.transforms.left.scale);
+        this.setZoom('right', this.transforms.right.scale);
+        this.updateBylineField();
+        this.draw();
     }
 
     splitJpegSegments(bytes) {

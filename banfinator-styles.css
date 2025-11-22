@@ -262,6 +262,10 @@ body {
     border-color: var(--accent);
 }
 
+.swap-btn {
+    white-space: nowrap;
+}
+
 .canvas-frame {
     position: relative;
     background: #0e1014;

@@ -12,20 +12,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@500&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="banf.svg?v=2025.11.4">
-    <link rel="alternate icon" href="banf.svg?v=2025.11.4">
-    <link rel="stylesheet" href="banfinator-styles.css?v=2025.11.4">
+    <link rel="icon" type="image/svg+xml" href="banf.svg?v=2025.11.5">
+    <link rel="alternate icon" href="banf.svg?v=2025.11.5">
+    <link rel="stylesheet" href="banfinator-styles.css?v=2025.11.5">
 </head>
 <body>
     <div class="app-shell">
         <header class="masthead">
             <div class="brand">
-                <img src="banf.svg?v=2025.11.4" alt="The Banfinator" class="brand-mark">
+                <img src="banf.svg?v=2025.11.5" alt="The Banfinator" class="brand-mark">
                 <div class="brand-copy">
                     <div class="brand-line">THE BANFINATOR</div>
                     <div class="brand-tagline">a passion project ❤️from CP-Tjänst</div>
                     <div class="brand-meta">
-                    <div class="brand-version">v2025.11.4</div>
+                    <div class="brand-version">v2025.11.5</div>
                     </div>
                 </div>
             </div>
@@ -55,6 +55,7 @@
             <div class="split-slider">
                 <input type="range" id="splitSlider" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
             </div>
+            <button type="button" id="swapSides" class="ghost swap-btn" aria-label="Byt plats på bilderna">Byt plats</button>
         </section>
 
         <section class="tuning-grid" aria-label="Zoom och position">
@@ -65,7 +66,7 @@
                 </div>
                 <label for="leftZoom" class="tuning-label">Zoom</label>
                 <input type="range" id="leftZoom" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
-                <p class="footnote">Dra bilden i canvasen för att justera position.</p>
+                <p class="footnote">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
             </div>
             <div class="tuning-card" data-side="right">
                 <div class="tuning-header">
@@ -74,7 +75,7 @@
                 </div>
                 <label for="rightZoom" class="tuning-label">Zoom</label>
                 <input type="range" id="rightZoom" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
-                <p class="footnote">Dra bilden i canvasen för att justera position.</p>
+                <p class="footnote">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
             </div>
         </section>
 
@@ -98,6 +99,6 @@
     </div>
 
     <footer class="site-footer">❤️ &amp; © CP-Tjänst/Jesper Sandström 2025</footer>
-    <script src="script.js?v=2025.11.4"></script>
+    <script src="script.js?v=2025.11.5"></script>
 </body>
 </html>
