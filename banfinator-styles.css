@@ -31,46 +31,84 @@ body {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 18px;
-    padding: 22px;
+    padding: 28px;
     box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+.masthead::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 12% 12%, rgba(138, 224, 255, 0.08), transparent 35%),
+                radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.05), transparent 30%);
+    opacity: 0.9;
+    pointer-events: none;
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 18px;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
 }
 
 .brand-mark {
-    width: 64px;
-    height: 64px;
+    width: 104px;
+    height: 104px;
+    filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.35));
 }
 
 .brand-copy {
     display: grid;
-    gap: 4px;
+    gap: 6px;
 }
 
 .brand-line {
     font-weight: 800;
     letter-spacing: 0.08em;
-    font-size: 1.1rem;
+    font-size: 2.4rem;
+    color: #ffffff;
+    text-transform: uppercase;
+    line-height: 1.1;
 }
 
 .brand-sub {
     color: var(--muted);
-    font-size: 0.95rem;
+    font-size: 1rem;
+}
+
+.brand-tagline {
+    color: var(--muted);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.brand-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .brand-version {
     font-family: 'Fira Mono', monospace;
-    color: var(--accent);
-    font-size: 0.85rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .lede {
-    margin: 12px 0 0;
+    margin: 16px 0 0;
     color: var(--muted);
+    position: relative;
+    z-index: 1;
 }
 
 .upload-grid {
@@ -258,22 +296,51 @@ body {
 }
 
 .site-footer {
+    font-family: 'Fira Mono', monospace;
     color: var(--muted);
     padding: 24px 12px 32px;
     border-top: 1px solid var(--border);
-    background: rgba(0, 0, 0, 0.2);
+    background: linear-gradient(180deg, rgba(15, 20, 29, 0.95), rgba(7, 10, 16, 0.9));
     margin-top: 42px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 14px;
     flex-wrap: wrap;
 }
 
+.footer-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.footer-mark {
+    width: 48px;
+    height: 48px;
+}
+
+.footer-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.footer-title {
+    color: #ffffff;
+    letter-spacing: 0.08em;
+}
+
+.footer-tagline {
+    color: var(--muted);
+}
+
 .footer-version {
-    font-family: 'Fira Mono', monospace;
-    color: var(--accent);
+    color: var(--muted);
     margin-left: auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 @media (max-width: 720px) {
