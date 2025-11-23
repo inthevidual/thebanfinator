@@ -2,7 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.1';
+        this.version = '1.2';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -20,7 +20,8 @@ class Banfinator {
             right: document.querySelector('[data-reset="right"]')
         };
         this.images = { left: null, right: null };
-        this.imageSuffixes = { left: '', right: '' };
+        this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
+        this.bureauSuffixes = { left: '', right: '' };
         this.transforms = {
             left: { scale: 1, offsetX: 0, offsetY: 0 },
             right: { scale: 1, offsetX: 0, offsetY: 0 }
@@ -91,7 +92,7 @@ class Banfinator {
             const file = files?.[0];
             if (!file) return;
 
-            this.setImageSuffix(side, file.name);
+            this.setBureauSuffix(side, '');
             this.loadImage(file, side, zone);
             this.loadBylineFromFile(file, side);
         };
@@ -292,6 +293,7 @@ class Banfinator {
             const xmp = iptcByline ? null : this.readXmpPacket(bytes);
             const parsed = iptcByline || (xmp ? this.extractBylineFromXmp(xmp) : '');
             this.bylineSources[side] = this.sanitizeBylineValue(parsed || '');
+            this.setBureauSuffix(side, this.bylineSources[side]);
             this.updateBylineField();
             this.updateSuffixInfo();
         } catch (err) {
@@ -541,25 +543,30 @@ class Banfinator {
 
     collapseDuplicateBureaus(entries) {
         if (entries.length < 2) return entries;
-        const bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
-        const leftMatch = entries[0].match(bureauRegex);
-        const rightMatch = entries[1].match(bureauRegex);
+        const leftMatch = entries[0].match(this.bureauRegex);
+        const rightMatch = entries[1].match(this.bureauRegex);
 
         if (leftMatch && rightMatch && leftMatch[1].toUpperCase() === rightMatch[1].toUpperCase()) {
             const bureau = rightMatch[1].toUpperCase();
             entries = [...entries];
-            entries[0] = entries[0].replace(bureauRegex, '');
-            entries[1] = entries[1].replace(bureauRegex, `/${bureau}`);
+            entries[0] = entries[0].replace(this.bureauRegex, '');
+            entries[1] = entries[1].replace(this.bureauRegex, `/${bureau}`);
         }
 
         return entries;
+    }
+
+    extractBureauSuffix(byline) {
+        if (!byline) return '';
+        const match = this.normalizeBureauSpacing(this.sanitizeBylineValue(byline)).match(this.bureauRegex);
+        return match ? match[1].toUpperCase() : '';
     }
 
     swapSides() {
         [this.images.left, this.images.right] = [this.images.right, this.images.left];
         [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
         [this.transforms.left, this.transforms.right] = [this.transforms.right, this.transforms.left];
-        [this.imageSuffixes.left, this.imageSuffixes.right] = [this.imageSuffixes.right, this.imageSuffixes.left];
+        [this.bureauSuffixes.left, this.bureauSuffixes.right] = [this.bureauSuffixes.right, this.bureauSuffixes.left];
 
         this.setZoom('left', this.transforms.left.scale);
         this.setZoom('right', this.transforms.right.scale);
@@ -568,18 +575,16 @@ class Banfinator {
         this.draw();
     }
 
-    setImageSuffix(side, filename) {
-        const match = filename?.match(/\.([^.]+)$/);
-        this.imageSuffixes[side] = match ? match[1].toUpperCase() : '';
+    setBureauSuffix(side, byline) {
+        this.bureauSuffixes[side] = this.extractBureauSuffix(byline);
         this.updateSuffixInfo();
     }
 
     updateSuffixInfo() {
         if (!this.suffixInfoBox) return;
-        const left = this.imageSuffixes.left;
-        const right = this.imageSuffixes.right;
-        const haveImages = this.images.left && this.images.right;
-        const sameSuffix = haveImages && left && right && left === right;
+        const left = this.bureauSuffixes.left;
+        const right = this.bureauSuffixes.right;
+        const sameSuffix = left && right && left === right;
 
         if (sameSuffix) {
             this.suffixInfoBox.textContent = `Båda bilderna är ${left}`;
