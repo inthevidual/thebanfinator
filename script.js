@@ -4,7 +4,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '2.3';
+        this.version = '2.5';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -184,7 +184,9 @@ class Banfinator {
     updateReadout() {
         const leftPercent = Math.round(this.ratio * 100);
         const rightPercent = 100 - leftPercent;
-        this.splitReadout.textContent = `${leftPercent}% | ${rightPercent}%`;
+        if (this.splitReadout) {
+            this.splitReadout.textContent = `${leftPercent}% | ${rightPercent}%`;
+        }
     }
 
     updateButtonState() {
@@ -228,14 +230,8 @@ class Banfinator {
         this.drawImageToRegion(ctx, this.images.left, leftRegion, height, 'left');
         this.drawImageToRegion(ctx, this.images.right, rightRegion, height, 'right');
 
-        ctx.save();
-        ctx.fillStyle = '#10131a';
-        ctx.fillRect(dividerX - 2, 0, this.dividerWidth + 4, height);
-        ctx.fillStyle = '#7aa6da';
-        ctx.shadowColor = 'rgba(122, 166, 218, 0.35)';
-        ctx.shadowBlur = 16;
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(dividerX, 0, this.dividerWidth, height);
-        ctx.restore();
 
     }
 

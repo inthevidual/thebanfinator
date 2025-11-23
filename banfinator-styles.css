@@ -51,7 +51,7 @@ p { color: var(--text); }
 .drop-zone.dragover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(122, 166, 218, 0.35); }
 
 .split-controls { border-radius: 16px; }
-.split-readout { font-family: 'Space Mono', monospace; background: var(--surface-2); border: 1px solid var(--border); color: var(--accent-strong); letter-spacing: 0.08em; }
+.split-readout { font-family: 'Inter', system-ui, sans-serif; background: var(--surface-2); border: 1px solid var(--border); color: #ffffff; letter-spacing: 0.04em; }
 .form-range { accent-color: var(--accent); }
 .swap-btn { white-space: nowrap; }
 
