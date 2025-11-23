@@ -2,7 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.6';
+        this.version = '1.01';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -492,16 +492,23 @@ class Banfinator {
     }
 
     async canvasToSrgbDataUrl() {
-        if (this.canvas.convertToBlob) {
+        const exportCanvas = typeof OffscreenCanvas !== 'undefined'
+            ? new OffscreenCanvas(this.canvas.width, this.canvas.height)
+            : Object.assign(document.createElement('canvas'), { width: this.canvas.width, height: this.canvas.height });
+
+        const exportCtx = exportCanvas.getContext('2d', { colorSpace: 'srgb' }) || exportCanvas.getContext('2d');
+        exportCtx.drawImage(this.canvas, 0, 0);
+
+        if (exportCanvas.convertToBlob) {
             try {
-                const blob = await this.canvas.convertToBlob({ type: 'image/jpeg', quality: 0.95, colorSpace: 'srgb' });
+                const blob = await exportCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.95, colorSpace: 'srgb' });
                 return await this.blobToDataUrl(blob);
             } catch (err) {
                 console.warn('convertToBlob with color space failed, falling back to toDataURL', err);
             }
         }
 
-        return this.canvas.toDataURL('image/jpeg', 0.95);
+        return exportCanvas.toDataURL('image/jpeg', 0.95);
     }
 
     async blobToDataUrl(blob) {
