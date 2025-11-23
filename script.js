@@ -137,23 +137,26 @@ class Banfinator {
     }
 
     draw() {
-        const { width, height } = this.canvas;
-        this.ctx.fillStyle = '#0c0e12';
-        this.ctx.fillRect(0, 0, width, height);
+        this.paintComposite(this.ctx, this.canvas.width, this.canvas.height);
+    }
+
+    paintComposite(ctx, width, height) {
+        ctx.fillStyle = '#0c0e12';
+        ctx.fillRect(0, 0, width, height);
 
         const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
         const leftRegion = { x: 0, width: dividerX };
         const rightRegion = { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth };
 
-        this.drawImageToRegion(this.images.left, leftRegion, height, 'left');
-        this.drawImageToRegion(this.images.right, rightRegion, height, 'right');
+        this.drawImageToRegion(ctx, this.images.left, leftRegion, height, 'left');
+        this.drawImageToRegion(ctx, this.images.right, rightRegion, height, 'right');
 
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillRect(dividerX, 0, this.dividerWidth, height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(dividerX, 0, this.dividerWidth, height);
 
     }
 
-    drawImageToRegion(img, region, canvasHeight, side) {
+    drawImageToRegion(ctx, img, region, canvasHeight, side) {
         if (!img) return;
         const metrics = this.computeBaseMetrics(img, region, canvasHeight, side);
         if (!metrics) return;
@@ -163,12 +166,12 @@ class Banfinator {
         const dx = metrics.dxBase + offsets.x;
         const dy = metrics.dyBase + offsets.y;
 
-        this.ctx.save();
-        this.ctx.beginPath();
-        this.ctx.rect(region.x, 0, region.width, canvasHeight);
-        this.ctx.clip();
-        this.ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
-        this.ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(region.x, 0, region.width, canvasHeight);
+        ctx.clip();
+        ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
+        ctx.restore();
     }
 
     computeBaseMetrics(img, region, canvasHeight, side, scaleOverride = null) {
@@ -202,7 +205,11 @@ class Banfinator {
         const exportedAt = new Date();
         const srgbProfile = await this.getSrgbProfileBytes();
 
-        const baseDataUrl = await this.canvasToSrgbDataUrl();
+        const compositeCanvas = this.buildExportCanvas();
+        const exportCtx = compositeCanvas.getContext('2d', { colorSpace: 'srgb' }) || compositeCanvas.getContext('2d');
+        this.paintComposite(exportCtx, compositeCanvas.width, compositeCanvas.height);
+
+        const baseDataUrl = await this.canvasToSrgbDataUrl(compositeCanvas);
         const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt, srgbProfile);
 
         link.download = `TheBanfinator_${timestamp}.jpg`;
@@ -357,9 +364,9 @@ class Banfinator {
             const bytes = new Uint8Array(await file.arrayBuffer());
             const profile = await this.detectColorProfile(bytes);
             this.colorProfiles[side] = profile || '';
-            const srgbDataUrl = await this.convertBufferToSrgbDataUrl(bytes, file.type);
+            const srgbBlob = await this.convertBufferToSrgbBlob(bytes, file.type);
 
-            await this.loadImageFromDataUrl(srgbDataUrl, side, zone);
+            await this.loadImageFromBlob(srgbBlob, side, zone);
             await this.loadBylineFromBytes(bytes, side);
             this.updateSuffixInfo();
         } catch (err) {
@@ -367,20 +374,16 @@ class Banfinator {
         }
     }
 
-    async loadImageFromDataUrl(dataUrl, side, zone) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                this.images[side] = img;
-                this.resetView(side, { silent: true });
-                zone.classList.add('loaded');
-                this.updateButtonState();
-                this.draw();
-                resolve();
-            };
-            img.onerror = reject;
-            img.src = `${dataUrl}#${Date.now()}`;
-        });
+    async loadImageFromBlob(blob, side, zone) {
+        const bitmap = await this.decodeBitmap(blob);
+        this.images[side]?.close?.();
+        this.images[side] = bitmap;
+        this.resetView(side, { silent: true });
+        if (zone) {
+            zone.classList.add('loaded');
+        }
+        this.updateButtonState();
+        this.draw();
     }
 
     async loadBylineFromBytes(bytes, side) {
@@ -445,7 +448,7 @@ class Banfinator {
         }
     }
 
-    async convertBufferToSrgbDataUrl(bytes, mimeType = 'image/jpeg') {
+    async convertBufferToSrgbBlob(bytes, mimeType = 'image/jpeg') {
         await this.ensureProfilesLoaded();
         const blob = new Blob([bytes], { type: mimeType });
         try {
@@ -455,7 +458,7 @@ class Banfinator {
                 : Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
 
             if (!canvas.width || !canvas.height) {
-                return await this.blobToDataUrl(blob);
+                return blob;
             }
 
             const ctx = canvas.getContext('2d', { colorSpace: 'srgb' }) || canvas.getContext('2d');
@@ -470,17 +473,17 @@ class Banfinator {
                     }, 'image/jpeg', 1);
                 });
 
-            return await this.blobToDataUrl(outputBlob);
+            return outputBlob;
         } catch (err) {
             console.warn('Color-managed decode failed, falling back to original data', err);
-            return await this.blobToDataUrl(blob);
+            return blob;
         }
     }
 
     async decodeToSrgbBitmap(blob, mimeType) {
         if (typeof ImageDecoder !== 'undefined') {
             try {
-                const decoder = new ImageDecoder({ data: blob, type: mimeType, colorSpaceConversion: 'default' });
+                const decoder = new ImageDecoder({ data: blob, type: mimeType, colorSpaceConversion: 'none' });
                 const { image } = await decoder.decode({ completeFramesOnly: true });
                 return image;
             } catch (err) {
@@ -488,27 +491,40 @@ class Banfinator {
             }
         }
 
-        return await createImageBitmap(blob, { colorSpaceConversion: 'default', premultiplyAlpha: 'none' });
+        return await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     }
 
-    async canvasToSrgbDataUrl() {
-        const exportCanvas = typeof OffscreenCanvas !== 'undefined'
+    buildExportCanvas() {
+        return typeof OffscreenCanvas !== 'undefined'
             ? new OffscreenCanvas(this.canvas.width, this.canvas.height)
             : Object.assign(document.createElement('canvas'), { width: this.canvas.width, height: this.canvas.height });
+    }
 
-        const exportCtx = exportCanvas.getContext('2d', { colorSpace: 'srgb' }) || exportCanvas.getContext('2d');
-        exportCtx.drawImage(this.canvas, 0, 0);
+    async decodeBitmap(blob) {
+        try {
+            return await this.decodeToSrgbBitmap(blob, blob.type || 'image/jpeg');
+        } catch (err) {
+            console.warn('Bitmap decode failed', err);
+            throw err;
+        }
+    }
 
-        if (exportCanvas.convertToBlob) {
+    async canvasToSrgbDataUrl(sourceCanvas = this.canvas) {
+        const exportCtx = sourceCanvas.getContext('2d', { colorSpace: 'srgb' }) || sourceCanvas.getContext('2d');
+        if (!exportCtx) {
+            throw new Error('Export canvas context unavailable');
+        }
+
+        if (sourceCanvas.convertToBlob) {
             try {
-                const blob = await exportCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.95, colorSpace: 'srgb' });
+                const blob = await sourceCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.95, colorSpace: 'srgb' });
                 return await this.blobToDataUrl(blob);
             } catch (err) {
                 console.warn('convertToBlob with color space failed, falling back to toDataURL', err);
             }
         }
 
-        return exportCanvas.toDataURL('image/jpeg', 0.95);
+        return sourceCanvas.toDataURL('image/jpeg', 0.95);
     }
 
     async blobToDataUrl(blob) {
