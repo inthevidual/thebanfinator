@@ -4,7 +4,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '2.0';
+        this.version = '2.1';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -923,18 +923,10 @@ class Banfinator {
         if (!this.suffixInfoBox) return;
         const left = this.bureauSuffixes.left;
         const right = this.bureauSuffixes.right;
-        const sameSuffix = left && right && left === right;
-        const messages = [];
+        const duplicateSuffix = left && right && left === right;
 
-        if (sameSuffix) {
-            messages.push(`Båda bilderna är ${left}`);
-        } else {
-            if (left) messages.push(`Vänster: ${left}`);
-            if (right) messages.push(`Höger: ${right}`);
-        }
-
-        if (messages.length) {
-            this.suffixInfoBox.textContent = messages.join(' · ');
+        if (duplicateSuffix) {
+            this.suffixInfoBox.textContent = `Båda bilderna är ${left}`;
             this.suffixInfoBox.hidden = false;
         } else {
             this.suffixInfoBox.hidden = true;
