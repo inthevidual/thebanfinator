@@ -73,8 +73,9 @@ p { color: var(--text); }
 .btn { font-weight: 700; letter-spacing: 0.01em; }
 .btn-accent { background: linear-gradient(135deg, var(--accent), #c397d8); border: none; color: #0a0a0a; box-shadow: 0 16px 32px rgba(122, 166, 218, 0.35); }
 .btn-accent:disabled { opacity: 0.45; box-shadow: none; cursor: not-allowed; }
-.btn-outline-accent { border: 1px solid var(--accent); color: var(--accent); background: transparent; }
-.btn-outline-accent:hover, .btn-accent:hover { transform: translateY(-1px); color: #0a0a0a; }
+.btn-outline-accent { border: 1px solid var(--accent); color: var(--accent); background: transparent; transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease; }
+.btn-outline-accent:hover { transform: translateY(-1px); background: rgba(122, 166, 218, 0.14); border-color: rgba(122, 166, 218, 0.85); color: var(--accent); box-shadow: 0 12px 28px rgba(122, 166, 218, 0.22); }
+.btn-accent:hover { transform: translateY(-1px); color: #0a0a0a; }
 
 .footnote { margin: 0; }
 .footnote-centered { text-align: center; margin: 6px 0 14px; }
