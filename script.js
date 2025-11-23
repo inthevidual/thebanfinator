@@ -2,7 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.3';
+        this.version = '1.4';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -36,6 +36,7 @@ class Banfinator {
         this.canvas.height = 2160;
         this.profilePromise = this.loadColorProfiles();
         this.bindEvents();
+        this.resetMetadataInputs();
         this.updateReadout();
         this.updateButtonState();
         this.clearCaches();
@@ -87,6 +88,16 @@ class Banfinator {
         } catch (err) {
             console.warn('Cache clearing skipped', err);
         }
+    }
+
+    resetMetadataInputs() {
+        if (this.bylineInput) {
+            this.bylineInput.value = '';
+        }
+        this.bylineDirty = false;
+        this.bylineSources = { left: '', right: '' };
+        this.bureauSuffixes = { left: '', right: '' };
+        this.updateSuffixInfo();
     }
 
     setupDropZone(zone, input, side) {
@@ -189,9 +200,10 @@ class Banfinator {
         const timestamp = this.formatTimestamp(new Date());
         const byline = this.sanitizeBylineValue(this.bylineInput.value);
         const exportedAt = new Date();
+        const srgbProfile = await this.getSrgbProfileBytes();
 
         const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
-        const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt);
+        const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt, srgbProfile);
 
         link.download = `TheBanfinator_${timestamp}.jpg`;
         link.href = finalDataUrl;
@@ -209,7 +221,7 @@ class Banfinator {
         return `${year}${month}${day}-${hours}${minutes}${seconds}`;
     }
 
-    injectMetadata(dataUrl, byline, exportedAt) {
+    injectMetadata(dataUrl, byline, exportedAt, srgbProfile) {
         const jpegBytes = this.dataURLToUint8Array(dataUrl);
         const segments = this.splitJpegSegments(jpegBytes);
 
@@ -217,7 +229,7 @@ class Banfinator {
         const xmpSegment = this.buildApp1Segment(xmpPacket);
         const iptcSegment = this.buildApp13Segment(byline);
         const exifSegment = this.buildExifSegment();
-        const iccSegment = this.buildICCProfileSegment(this.iccProfiles?.sRGB);
+        const iccSegment = this.buildICCProfileSegment(srgbProfile);
         const xmpIdentifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
         const exifIdentifier = new TextEncoder().encode('Exif\0\0');
 
@@ -373,11 +385,13 @@ class Banfinator {
 
     async loadBylineFromBytes(bytes, side) {
         try {
-            const iptcByline = this.readIptcByline(bytes);
-            const xmp = iptcByline ? null : this.readXmpPacket(bytes);
-            const parsed = iptcByline || (xmp ? this.extractBylineFromXmp(xmp) : '');
-            this.bylineSources[side] = this.sanitizeBylineValue(parsed || '');
-            this.setBureauSuffix(side, this.bylineSources[side]);
+            const iptc = this.readIptcFields(bytes);
+            const xmp = iptc.byline ? null : this.readXmpPacket(bytes);
+            const parsedByline = iptc.byline || (xmp ? this.extractBylineFromXmp(xmp) : '');
+            const parsedCredit = iptc.credit || (xmp ? this.extractCreditFromXmp(xmp) : '');
+            const bylineWithSuffix = this.applyCreditBureauSuffix(parsedByline, parsedCredit);
+            this.bylineSources[side] = this.sanitizeBylineValue(bylineWithSuffix || '');
+            this.setBureauSuffix(side, this.bylineSources[side], parsedCredit);
             this.updateBylineField();
             this.updateSuffixInfo();
         } catch (err) {
@@ -407,10 +421,27 @@ class Banfinator {
         if (!this.profilePromise) return;
         try {
             await this.profilePromise;
+            this.profilePromise = null;
         } catch (err) {
             console.warn('ICC-profiler kunde inte laddas', err);
             this.iccProfiles = this.iccProfiles || {};
             this.profilePromise = null;
+        }
+    }
+
+    async getSrgbProfileBytes() {
+        await this.ensureProfilesLoaded();
+        if (this.iccProfiles?.sRGB) return this.iccProfiles.sRGB;
+
+        try {
+            const response = await fetch('colorprofiles/sRGB.icc');
+            const buffer = await response.arrayBuffer();
+            const profile = new Uint8Array(buffer);
+            this.iccProfiles = { ...(this.iccProfiles || {}), sRGB: profile };
+            return profile;
+        } catch (err) {
+            console.warn('sRGB profile unavailable', err);
+            return null;
         }
     }
 
@@ -522,13 +553,15 @@ class Banfinator {
         return null;
     }
 
-    readIptcByline(bytes) {
+    readIptcFields(bytes) {
         let segments;
         try {
             segments = this.splitJpegSegments(bytes);
         } catch (err) {
-            return '';
+            return { byline: '', credit: '' };
         }
+
+        const result = { byline: '', credit: '' };
 
         for (const segment of segments) {
             if (!this.isIptcSegment(segment)) continue;
@@ -550,17 +583,20 @@ class Banfinator {
                 if (offset + dataSize > content.length) break;
                 if (resourceId === 0x0404) {
                     const iptc = content.slice(offset, offset + dataSize);
-                    const parsed = this.extractIptcByline(iptc);
-                    if (parsed) return parsed;
+                    const parsed = this.extractIptcFieldsFromBlock(iptc);
+                    result.byline = result.byline || parsed.byline;
+                    result.credit = result.credit || parsed.credit;
+                    if (result.byline && result.credit) return result;
                 }
                 offset += dataSize;
                 if (dataSize % 2 === 1) offset += 1;
             }
         }
-        return '';
+        return result;
     }
 
-    extractIptcByline(iptc) {
+    extractIptcFieldsFromBlock(iptc) {
+        const parsed = { byline: '', credit: '' };
         let offset = 0;
         while (offset + 5 <= iptc.length) {
             if (iptc[offset] !== 0x1c) break;
@@ -569,13 +605,15 @@ class Banfinator {
             const length = (iptc[offset + 3] << 8) + iptc[offset + 4];
             offset += 5;
             if (offset + length > iptc.length) break;
-            if (record === 0x02 && dataset === 0x50) {
+            if (record === 0x02) {
                 const valueBytes = iptc.slice(offset, offset + length);
-                return new TextDecoder('utf-8', { fatal: false }).decode(valueBytes).trim();
+                const decoded = new TextDecoder('utf-8', { fatal: false }).decode(valueBytes).trim();
+                if (dataset === 0x50 && !parsed.byline) parsed.byline = decoded;
+                if (dataset === 0x6e && !parsed.credit) parsed.credit = decoded;
             }
             offset += length;
         }
-        return '';
+        return parsed;
     }
 
     extractBylineFromXmp(xmp) {
@@ -584,6 +622,11 @@ class Banfinator {
         const descriptionMatch = xmp.match(/<dc:description[^>]*>\s*<rdf:Alt>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
         const raw = bylineMatch?.[1] || creatorMatch?.[1] || descriptionMatch?.[1] || '';
         return this.unescapeXml(raw.trim());
+    }
+
+    extractCreditFromXmp(xmp) {
+        const creditMatch = xmp.match(/<photoshop:Credit[^>]*>([^<]*)<\/photoshop:Credit>/i);
+        return this.unescapeXml((creditMatch?.[1] || '').trim());
     }
 
     updateBylineField() {
@@ -729,6 +772,14 @@ class Banfinator {
         return this.sanitizeBylineValue(collapsed.join('/'));
     }
 
+    applyCreditBureauSuffix(byline, credit) {
+        const sanitized = this.sanitizeBylineValue(byline);
+        const existingBureau = this.extractBureauSuffix(sanitized);
+        const creditBureau = this.extractCreditBureau(credit);
+        if (existingBureau || !creditBureau) return sanitized;
+        return sanitized ? `${sanitized}/${creditBureau}` : creditBureau;
+    }
+
     sanitizeBylineValue(value) {
         const trimmed = (value || '').trim();
         if (!trimmed) return '';
@@ -763,6 +814,12 @@ class Banfinator {
         return match ? match[1].toUpperCase() : '';
     }
 
+    extractCreditBureau(credit) {
+        if (!credit) return '';
+        const match = credit.match(/\b(AP|AFP|NTB)\b/i);
+        return match ? match[1].toUpperCase() : '';
+    }
+
     swapSides() {
         [this.images.left, this.images.right] = [this.images.right, this.images.left];
         [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
@@ -777,8 +834,10 @@ class Banfinator {
         this.draw();
     }
 
-    setBureauSuffix(side, byline) {
-        this.bureauSuffixes[side] = this.extractBureauSuffix(byline);
+    setBureauSuffix(side, byline, credit = '') {
+        const bylineSuffix = this.extractBureauSuffix(byline);
+        const creditSuffix = this.extractCreditBureau(credit);
+        this.bureauSuffixes[side] = bylineSuffix || creditSuffix || '';
         this.updateSuffixInfo();
     }
 
