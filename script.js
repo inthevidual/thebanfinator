@@ -2,11 +2,12 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.0';
+        this.version = '1.1';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
         this.bylineInput = document.getElementById('bylineInput');
+        this.suffixInfoBox = document.getElementById('suffixInfo');
         this.swapBtn = document.getElementById('swapSides');
         this.leftInput = document.getElementById('leftFileInput');
         this.rightInput = document.getElementById('rightFileInput');
@@ -180,16 +181,27 @@ class Banfinator {
 
     export() {
         const link = document.createElement('a');
-        const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+        const timestamp = this.formatTimestamp(new Date());
         const byline = this.sanitizeBylineValue(this.bylineInput.value);
         const exportedAt = new Date();
 
         const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
         const finalDataUrl = byline ? this.injectMetadata(baseDataUrl, byline, exportedAt) : baseDataUrl;
 
-        link.download = `banfinator_${timestamp}.jpg`;
+        link.download = `TheBanfinator_${timestamp}.jpg`;
         link.href = finalDataUrl;
         link.click();
+    }
+
+    formatTimestamp(date) {
+        const pad = (num) => num.toString().padStart(2, '0');
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        return `${year}${month}${day}-${hours}${minutes}${seconds}`;
     }
 
     injectMetadata(dataUrl, byline, exportedAt) {
@@ -262,6 +274,7 @@ class Banfinator {
                 this.resetView(side, { silent: true });
                 zone.classList.add('loaded');
                 this.updateButtonState();
+                this.updateSuffixInfo();
                 this.draw();
             };
             img.src = `${reader.result}#${Date.now()}`; // ensure cache busting per load
@@ -278,6 +291,7 @@ class Banfinator {
             const parsed = iptcByline || (xmp ? this.extractBylineFromXmp(xmp) : '');
             this.bylineSources[side] = this.sanitizeBylineValue(parsed || '');
             this.updateBylineField();
+            this.updateSuffixInfo();
         } catch (err) {
             console.warn('Metadata read skipped', err);
         }
@@ -543,11 +557,32 @@ class Banfinator {
         [this.images.left, this.images.right] = [this.images.right, this.images.left];
         [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
         [this.transforms.left, this.transforms.right] = [this.transforms.right, this.transforms.left];
-
         this.setZoom('left', this.transforms.left.scale);
         this.setZoom('right', this.transforms.right.scale);
         this.updateBylineField();
+        this.updateSuffixInfo();
         this.draw();
+    }
+
+    updateSuffixInfo() {
+        if (!this.suffixInfoBox) return;
+        const left = this.extractBureauSuffix(this.bylineSources.left);
+        const right = this.extractBureauSuffix(this.bylineSources.right);
+        const sameSuffix = left && right && left === right;
+
+        if (sameSuffix) {
+            this.suffixInfoBox.textContent = `Båda bilderna är ${left}`;
+            this.suffixInfoBox.hidden = false;
+        } else {
+            this.suffixInfoBox.hidden = true;
+        }
+    }
+
+    extractBureauSuffix(byline) {
+        if (!byline) return '';
+        const bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
+        const match = byline.match(bureauRegex);
+        return match ? match[1].toUpperCase() : '';
     }
 
     splitJpegSegments(bytes) {

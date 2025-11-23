@@ -12,20 +12,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@500&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="banf.svg?v=1.0">
-    <link rel="alternate icon" href="banf.svg?v=1.0">
-    <link rel="stylesheet" href="banfinator-styles.css?v=1.0">
+    <link rel="icon" type="image/svg+xml" href="banf.svg?v=1.1">
+    <link rel="alternate icon" href="banf.svg?v=1.1">
+    <link rel="stylesheet" href="banfinator-styles.css?v=1.1">
 </head>
 <body>
     <div class="app-shell">
         <header class="masthead">
             <div class="brand">
-                <img src="banf.svg?v=1.0" alt="The Banfinator" class="brand-mark">
+                <img src="banf.svg?v=1.1" alt="The Banfinator" class="brand-mark">
                 <div class="brand-copy">
                     <div class="brand-line">THE BANFINATOR</div>
                     <div class="brand-tagline">a passion project ❤️from CP-Tjänst</div>
                     <div class="brand-meta">
-                    <div class="brand-version">v1.0</div>
+                    <div class="brand-version">v1.1</div>
                     </div>
                 </div>
             </div>
@@ -35,16 +35,14 @@
             <div class="drop-zone" data-side="left">
                 <div class="drop-copy">
                     <span class="pill">Vänster</span>
-                    <strong>Släpp bild eller klicka</strong>
-                    <small>JPG • auto-placeras till vänster</small>
+                    <strong>Dra och släpp JPG eller klicka här för att ladda upp</strong>
                 </div>
                 <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" hidden>
             </div>
             <div class="drop-zone" data-side="right">
                 <div class="drop-copy">
                     <span class="pill">Höger</span>
-                    <strong>Släpp bild eller klicka</strong>
-                    <small>JPG • auto-placeras till höger</small>
+                    <strong>Dra och släpp JPG eller klicka här för att ladda upp</strong>
                 </div>
                 <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" hidden>
             </div>
@@ -66,7 +64,6 @@
                 </div>
                 <label for="leftZoom" class="tuning-label">Zoom</label>
                 <input type="range" id="leftZoom" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
-                <p class="footnote">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
             </div>
             <div class="tuning-card" data-side="right">
                 <div class="tuning-header">
@@ -75,9 +72,9 @@
                 </div>
                 <label for="rightZoom" class="tuning-label">Zoom</label>
                 <input type="range" id="rightZoom" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
-                <p class="footnote">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
             </div>
         </section>
+        <p class="footnote footnote-centered">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
 
         <section class="canvas-stage">
             <div class="canvas-frame">
@@ -88,6 +85,7 @@
             <div class="field-group">
                 <label for="bylineInput">Byline/metadata</label>
                 <input type="text" id="bylineInput" placeholder="Byline från bilderna visas här och kan redigeras">
+                <div id="suffixInfo" class="info-note" role="status" aria-live="polite" hidden></div>
             </div>
             <div class="actions">
                 <button id="exportBtn" class="primary" disabled>Spara sammanslagen JPG</button>
@@ -97,6 +95,6 @@
     </div>
 
     <footer class="site-footer">❤️ &amp; © CP-Tjänst/Jesper Sandström 2025</footer>
-    <script src="script.js?v=1.0"></script>
+    <script src="script.js?v=1.1"></script>
 </body>
 </html>

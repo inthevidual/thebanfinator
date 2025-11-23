@@ -348,6 +348,18 @@ body {
     margin: 0;
 }
 
+.footnote-centered {
+    text-align: center;
+    margin: 6px 0 14px;
+}
+
+.info-note {
+    margin-top: 8px;
+    color: #c2dcff;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
 .site-footer {
     font-family: 'Fira Mono', monospace;
     font-size: 11px;
