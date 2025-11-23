@@ -20,6 +20,7 @@ class Banfinator {
             right: document.querySelector('[data-reset="right"]')
         };
         this.images = { left: null, right: null };
+        this.imageSuffixes = { left: '', right: '' };
         this.transforms = {
             left: { scale: 1, offsetX: 0, offsetY: 0 },
             right: { scale: 1, offsetX: 0, offsetY: 0 }
@@ -90,6 +91,7 @@ class Banfinator {
             const file = files?.[0];
             if (!file) return;
 
+            this.setImageSuffix(side, file.name);
             this.loadImage(file, side, zone);
             this.loadBylineFromFile(file, side);
         };
@@ -557,6 +559,8 @@ class Banfinator {
         [this.images.left, this.images.right] = [this.images.right, this.images.left];
         [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
         [this.transforms.left, this.transforms.right] = [this.transforms.right, this.transforms.left];
+        [this.imageSuffixes.left, this.imageSuffixes.right] = [this.imageSuffixes.right, this.imageSuffixes.left];
+
         this.setZoom('left', this.transforms.left.scale);
         this.setZoom('right', this.transforms.right.scale);
         this.updateBylineField();
@@ -564,11 +568,18 @@ class Banfinator {
         this.draw();
     }
 
+    setImageSuffix(side, filename) {
+        const match = filename?.match(/\.([^.]+)$/);
+        this.imageSuffixes[side] = match ? match[1].toUpperCase() : '';
+        this.updateSuffixInfo();
+    }
+
     updateSuffixInfo() {
         if (!this.suffixInfoBox) return;
-        const left = this.extractBureauSuffix(this.bylineSources.left);
-        const right = this.extractBureauSuffix(this.bylineSources.right);
-        const sameSuffix = left && right && left === right;
+        const left = this.imageSuffixes.left;
+        const right = this.imageSuffixes.right;
+        const haveImages = this.images.left && this.images.right;
+        const sameSuffix = haveImages && left && right && left === right;
 
         if (sameSuffix) {
             this.suffixInfoBox.textContent = `Båda bilderna är ${left}`;
@@ -576,13 +587,6 @@ class Banfinator {
         } else {
             this.suffixInfoBox.hidden = true;
         }
-    }
-
-    extractBureauSuffix(byline) {
-        if (!byline) return '';
-        const bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
-        const match = byline.match(bureauRegex);
-        return match ? match[1].toUpperCase() : '';
     }
 
     splitJpegSegments(bytes) {

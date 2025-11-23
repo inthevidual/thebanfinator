@@ -353,10 +353,13 @@ body {
     margin: 6px 0 14px;
 }
 
-.info-note {
+.info-box {
     margin-top: 8px;
-    color: #c2dcff;
-    font-weight: 600;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--accent);
     font-size: 0.95rem;
 }
 
