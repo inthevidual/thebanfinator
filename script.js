@@ -185,29 +185,35 @@ class Banfinator {
         const exportedAt = new Date();
 
         const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
-        const finalDataUrl = byline ? this.injectXmpByline(baseDataUrl, byline, exportedAt) : baseDataUrl;
+        const finalDataUrl = byline ? this.injectMetadata(baseDataUrl, byline, exportedAt) : baseDataUrl;
 
         link.download = `banfinator_${timestamp}.jpg`;
         link.href = finalDataUrl;
         link.click();
     }
 
-    injectXmpByline(dataUrl, byline, exportedAt) {
+    injectMetadata(dataUrl, byline, exportedAt) {
         const jpegBytes = this.dataURLToUint8Array(dataUrl);
         const segments = this.splitJpegSegments(jpegBytes);
 
         const xmpPacket = this.buildXmpPacket(byline, exportedAt);
         const xmpSegment = this.buildApp1Segment(xmpPacket);
+        const iptcSegment = this.buildApp13Segment(byline);
         const xmpIdentifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
 
         const filteredSegments = segments.filter((segment) => {
-            if (segment[0] !== 0xff || segment[1] !== 0xe1) return true;
-            const length = (segment[2] << 8) + segment[3];
-            const content = segment.slice(4, 4 + length - 2);
-            return !this.startsWithArray(content, xmpIdentifier);
+            if (segment[0] === 0xff && segment[1] === 0xe1) {
+                const length = (segment[2] << 8) + segment[3];
+                const content = segment.slice(4, 4 + length - 2);
+                if (this.startsWithArray(content, xmpIdentifier)) return false;
+            }
+
+            if (this.isIptcSegment(segment)) return false;
+            return true;
         });
 
-        filteredSegments.splice(1, 0, xmpSegment);
+        const injected = [iptcSegment, xmpSegment].filter(Boolean);
+        filteredSegments.splice(1, 0, ...injected);
         const merged = this.mergeSegments(filteredSegments);
         return this.uint8ArrayToDataURL(merged);
     }
@@ -267,8 +273,9 @@ class Banfinator {
         try {
             const buffer = await file.arrayBuffer();
             const bytes = new Uint8Array(buffer);
-            const xmp = this.readXmpPacket(bytes);
-            const parsed = xmp ? this.extractByline(xmp) : '';
+            const iptcByline = this.readIptcByline(bytes);
+            const xmp = iptcByline ? null : this.readXmpPacket(bytes);
+            const parsed = iptcByline || (xmp ? this.extractBylineFromXmp(xmp) : '');
             this.bylineSources[side] = this.sanitizeBylineValue(parsed || '');
             this.updateBylineField();
         } catch (err) {
@@ -296,7 +303,63 @@ class Banfinator {
         return null;
     }
 
-    extractByline(xmp) {
+    readIptcByline(bytes) {
+        let segments;
+        try {
+            segments = this.splitJpegSegments(bytes);
+        } catch (err) {
+            return '';
+        }
+
+        for (const segment of segments) {
+            if (!this.isIptcSegment(segment)) continue;
+            const length = (segment[2] << 8) + segment[3];
+            const content = segment.slice(4, 4 + length - 2);
+            const photoshopHeader = new TextEncoder().encode('Photoshop 3.0\0');
+            let offset = photoshopHeader.length;
+
+            while (offset + 8 <= content.length) {
+                if (!this.startsWithArray(content.slice(offset, offset + 4), new TextEncoder().encode('8BIM'))) break;
+                const resourceId = (content[offset + 4] << 8) + content[offset + 5];
+                const nameLength = content[offset + 6];
+                offset += 7 + nameLength;
+                if ((nameLength + 1) % 2 === 1) offset += 1;
+                if (offset + 4 > content.length) break;
+
+                const dataSize = (content[offset] << 24) + (content[offset + 1] << 16) + (content[offset + 2] << 8) + content[offset + 3];
+                offset += 4;
+                if (offset + dataSize > content.length) break;
+                if (resourceId === 0x0404) {
+                    const iptc = content.slice(offset, offset + dataSize);
+                    const parsed = this.extractIptcByline(iptc);
+                    if (parsed) return parsed;
+                }
+                offset += dataSize;
+                if (dataSize % 2 === 1) offset += 1;
+            }
+        }
+        return '';
+    }
+
+    extractIptcByline(iptc) {
+        let offset = 0;
+        while (offset + 5 <= iptc.length) {
+            if (iptc[offset] !== 0x1c) break;
+            const record = iptc[offset + 1];
+            const dataset = iptc[offset + 2];
+            const length = (iptc[offset + 3] << 8) + iptc[offset + 4];
+            offset += 5;
+            if (offset + length > iptc.length) break;
+            if (record === 0x02 && dataset === 0x50) {
+                const valueBytes = iptc.slice(offset, offset + length);
+                return new TextDecoder('utf-8', { fatal: false }).decode(valueBytes).trim();
+            }
+            offset += length;
+        }
+        return '';
+    }
+
+    extractBylineFromXmp(xmp) {
         const bylineMatch = xmp.match(/<photoshop:AuthorsPosition[^>]*>([^<]*)<\/photoshop:AuthorsPosition>/i);
         const creatorMatch = xmp.match(/<dc:creator[^>]*>\s*<rdf:Seq>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
         const descriptionMatch = xmp.match(/<dc:description[^>]*>\s*<rdf:Alt>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
@@ -548,6 +611,84 @@ class Banfinator {
             if (buffer[i] !== prefix[i]) return false;
         }
         return true;
+    }
+
+    buildApp13Segment(byline) {
+        if (!byline) return null;
+        const encoder = new TextEncoder();
+        const photoshopHeader = encoder.encode('Photoshop 3.0\0');
+        const signature = encoder.encode('8BIM');
+        const resourceId = new Uint8Array([0x04, 0x04]);
+        const nameBlock = new Uint8Array(2); // empty name, padded to even
+
+        const iptcData = this.buildIptcData(byline);
+        const dataSize = new Uint8Array(4);
+        dataSize[0] = (iptcData.length >> 24) & 0xff;
+        dataSize[1] = (iptcData.length >> 16) & 0xff;
+        dataSize[2] = (iptcData.length >> 8) & 0xff;
+        dataSize[3] = iptcData.length & 0xff;
+
+        const dataPad = iptcData.length % 2 === 1 ? new Uint8Array([0]) : new Uint8Array(0);
+        const content = this.concatUint8Arrays(photoshopHeader, signature, resourceId, nameBlock, dataSize, iptcData, dataPad);
+
+        const totalLength = content.length + 2;
+        const segment = new Uint8Array(4 + content.length);
+        segment[0] = 0xff; segment[1] = 0xed;
+        segment[2] = (totalLength >> 8) & 0xff;
+        segment[3] = totalLength & 0xff;
+        segment.set(content, 4);
+
+        return segment;
+    }
+
+    buildIptcData(byline) {
+        const encoder = new TextEncoder();
+        const valueBytes = encoder.encode(byline);
+        const block = new Uint8Array(5 + valueBytes.length);
+        block[0] = 0x1c; // IPTC marker
+        block[1] = 0x02; // Application record
+        block[2] = 0x50; // By-line dataset
+        block[3] = (valueBytes.length >> 8) & 0xff;
+        block[4] = valueBytes.length & 0xff;
+        block.set(valueBytes, 5);
+        return block;
+    }
+
+    isIptcSegment(segment) {
+        if (segment[0] !== 0xff || segment[1] !== 0xed) return false;
+        const length = (segment[2] << 8) + segment[3];
+        const content = segment.slice(4, 4 + length - 2);
+        const photoshopHeader = new TextEncoder().encode('Photoshop 3.0\0');
+        if (!this.startsWithArray(content, photoshopHeader)) return false;
+
+        let offset = photoshopHeader.length;
+        const signature = new TextEncoder().encode('8BIM');
+        while (offset + 8 <= content.length) {
+            if (!this.startsWithArray(content.slice(offset, offset + 4), signature)) break;
+            const resourceId = (content[offset + 4] << 8) + content[offset + 5];
+            const nameLength = content[offset + 6];
+            offset += 7 + nameLength;
+            if ((nameLength + 1) % 2 === 1) offset += 1;
+            if (offset + 4 > content.length) break;
+
+            const dataSize = (content[offset] << 24) + (content[offset + 1] << 16) + (content[offset + 2] << 8) + content[offset + 3];
+            offset += 4 + dataSize;
+            if (dataSize % 2 === 1) offset += 1;
+
+            if (resourceId === 0x0404) return true;
+        }
+        return false;
+    }
+
+    concatUint8Arrays(...arrays) {
+        const total = arrays.reduce((sum, arr) => sum + arr.length, 0);
+        const merged = new Uint8Array(total);
+        let offset = 0;
+        arrays.forEach((arr) => {
+            merged.set(arr, offset);
+            offset += arr.length;
+        });
+        return merged;
     }
 
     escapeXml(value) {
