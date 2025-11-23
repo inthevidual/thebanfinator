@@ -2,7 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.2';
+        this.version = '1.3';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -27,12 +27,14 @@ class Banfinator {
             right: { scale: 1, offsetX: 0, offsetY: 0 }
         };
         this.bylineSources = { left: '', right: '' };
+        this.colorProfiles = { left: '', right: '' };
         this.bylineDirty = false;
         this.dragState = null;
         this.ratio = 0.5;
         this.dividerWidth = 10;
         this.canvas.width = 3840;
         this.canvas.height = 2160;
+        this.profilePromise = this.loadColorProfiles();
         this.bindEvents();
         this.updateReadout();
         this.updateButtonState();
@@ -88,13 +90,12 @@ class Banfinator {
     }
 
     setupDropZone(zone, input, side) {
-        const handleFiles = (files) => {
+        const handleFiles = async (files) => {
             const file = files?.[0];
             if (!file) return;
 
             this.setBureauSuffix(side, '');
-            this.loadImage(file, side, zone);
-            this.loadBylineFromFile(file, side);
+            await this.handleFileUpload(file, side, zone);
         };
 
         zone.addEventListener('click', () => input.click());
@@ -182,14 +183,15 @@ class Banfinator {
         };
     }
 
-    export() {
+    async export() {
+        await this.ensureProfilesLoaded();
         const link = document.createElement('a');
         const timestamp = this.formatTimestamp(new Date());
         const byline = this.sanitizeBylineValue(this.bylineInput.value);
         const exportedAt = new Date();
 
         const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
-        const finalDataUrl = byline ? this.injectMetadata(baseDataUrl, byline, exportedAt) : baseDataUrl;
+        const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt);
 
         link.download = `TheBanfinator_${timestamp}.jpg`;
         link.href = finalDataUrl;
@@ -214,20 +216,25 @@ class Banfinator {
         const xmpPacket = this.buildXmpPacket(byline, exportedAt);
         const xmpSegment = this.buildApp1Segment(xmpPacket);
         const iptcSegment = this.buildApp13Segment(byline);
+        const exifSegment = this.buildExifSegment();
+        const iccSegment = this.buildICCProfileSegment(this.iccProfiles?.sRGB);
         const xmpIdentifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+        const exifIdentifier = new TextEncoder().encode('Exif\0\0');
 
         const filteredSegments = segments.filter((segment) => {
             if (segment[0] === 0xff && segment[1] === 0xe1) {
                 const length = (segment[2] << 8) + segment[3];
                 const content = segment.slice(4, 4 + length - 2);
                 if (this.startsWithArray(content, xmpIdentifier)) return false;
+                if (this.startsWithArray(content, exifIdentifier)) return false;
             }
 
             if (this.isIptcSegment(segment)) return false;
+            if (this.isIccSegment(segment)) return false;
             return true;
         });
 
-        const injected = [iptcSegment, xmpSegment].filter(Boolean);
+        const injected = [exifSegment, iccSegment, iptcSegment, xmpSegment].filter(Boolean);
         filteredSegments.splice(1, 0, ...injected);
         const merged = this.mergeSegments(filteredSegments);
         return this.uint8ArrayToDataURL(merged);
@@ -240,10 +247,11 @@ class Banfinator {
         return (
             `<?xpacket begin='\ufeff' id='W5M0MpCehiHzreSzNTczkc9d'?>\n` +
             `<x:xmpmeta xmlns:x='adobe:ns:meta/'>\n` +
-            `<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:photoshop='http://ns.adobe.com/photoshop/1.0/' xmlns:xmpMM='http://ns.adobe.com/xap/1.0/mm/' xmlns:stEvt='http://ns.adobe.com/xap/1.0/sType/ResourceEvent#'>\n` +
+            `<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:photoshop='http://ns.adobe.com/photoshop/1.0/' xmlns:xmpMM='http://ns.adobe.com/xap/1.0/mm/' xmlns:stEvt='http://ns.adobe.com/xap/1.0/sType/ResourceEvent#' xmlns:exif='http://ns.adobe.com/exif/1.0/'>\n` +
             `<rdf:Description>\n` +
             `<dc:creator><rdf:Seq><rdf:li>${escaped}</rdf:li></rdf:Seq></dc:creator>\n` +
             `<photoshop:AuthorsPosition>${escaped}</photoshop:AuthorsPosition>\n` +
+            `<exif:ColorSpace>1</exif:ColorSpace>\n` +
             `<xmpMM:History><rdf:Seq><rdf:li rdf:parseType='Resource'><stEvt:action>saved</stEvt:action><stEvt:softwareAgent>${softwareAgent}</stEvt:softwareAgent><stEvt:when>${when}</stEvt:when></rdf:li></rdf:Seq></xmpMM:History>\n` +
             `</rdf:Description>\n` +
             `</rdf:RDF>\n` +
@@ -268,27 +276,103 @@ class Banfinator {
         return segment;
     }
 
-    loadImage(file, side, zone) {
-        const reader = new FileReader();
-        reader.onload = () => {
+    buildExifSegment() {
+        const encoder = new TextEncoder();
+        const header = encoder.encode('Exif\0\0');
+        const totalLength = 50; // 6 Exif header + 44 byte TIFF payload
+        const buffer = new ArrayBuffer(totalLength);
+        const view = new DataView(buffer);
+        let offset = 0;
+        header.forEach((byte) => view.setUint8(offset++, byte));
+
+        // TIFF header (little endian)
+        view.setUint8(offset++, 0x49);
+        view.setUint8(offset++, 0x49);
+        view.setUint16(offset, 42, true); offset += 2;
+        view.setUint32(offset, 8, true); offset += 4; // IFD0 offset
+
+        const ifd0Start = offset;
+        view.setUint16(offset, 1, true); offset += 2; // entry count
+
+        // ExifIFD pointer (Tag 0x8769)
+        view.setUint16(offset, 0x8769, true); offset += 2;
+        view.setUint16(offset, 4, true); offset += 2; // type LONG
+        view.setUint32(offset, 1, true); offset += 4; // count
+        view.setUint32(offset, 0x1a, true); offset += 4; // offset to ExifIFD relative to TIFF start
+
+        view.setUint32(offset, 0, true); offset += 4; // next IFD pointer
+
+        const exifIfdStart = ifd0Start + 2 + 12 + 4; // 0x1a
+        view.setUint16(exifIfdStart, 1, true);
+        let exifOffset = exifIfdStart + 2;
+        view.setUint16(exifOffset, 0xa001, true); exifOffset += 2; // ColorSpace tag
+        view.setUint16(exifOffset, 3, true); exifOffset += 2; // SHORT
+        view.setUint32(exifOffset, 1, true); exifOffset += 4; // count
+        view.setUint16(exifOffset, 1, true); // sRGB
+        // value already fits into 2 bytes; upper two bytes remain 0
+
+        view.setUint32(exifIfdStart + 2 + 12, 0, true); // next IFD pointer for ExifIFD
+
+        const contentLength = buffer.byteLength;
+        const segment = new Uint8Array(4 + contentLength);
+        segment[0] = 0xff; segment[1] = 0xe1;
+        const declaredLength = contentLength + 2;
+        segment[2] = (declaredLength >> 8) & 0xff;
+        segment[3] = declaredLength & 0xff;
+        segment.set(new Uint8Array(buffer), 4);
+        return segment;
+    }
+
+    buildICCProfileSegment(profileBytes) {
+        if (!profileBytes) return null;
+        const identifier = new TextEncoder().encode('ICC_PROFILE\0');
+        const headerLength = identifier.length + 2; // sequence + count
+        const contentLength = headerLength + profileBytes.length;
+        const segment = new Uint8Array(4 + contentLength);
+        segment[0] = 0xff; segment[1] = 0xe2;
+        const declaredLength = contentLength + 2;
+        segment[2] = (declaredLength >> 8) & 0xff;
+        segment[3] = declaredLength & 0xff;
+        segment.set(identifier, 4);
+        segment[4 + identifier.length] = 1; // sequence number
+        segment[5 + identifier.length] = 1; // total sequences
+        segment.set(profileBytes, 4 + headerLength);
+        return segment;
+    }
+
+    async handleFileUpload(file, side, zone) {
+        try {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            const profile = await this.detectColorProfile(bytes);
+            this.colorProfiles[side] = profile || '';
+            const srgbDataUrl = await this.convertBufferToSrgbDataUrl(bytes, file.type);
+
+            await this.loadImageFromDataUrl(srgbDataUrl, side, zone);
+            await this.loadBylineFromBytes(bytes, side);
+            this.updateSuffixInfo();
+        } catch (err) {
+            console.error('File processing failed', err);
+        }
+    }
+
+    async loadImageFromDataUrl(dataUrl, side, zone) {
+        return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
                 this.images[side] = img;
                 this.resetView(side, { silent: true });
                 zone.classList.add('loaded');
                 this.updateButtonState();
-                this.updateSuffixInfo();
                 this.draw();
+                resolve();
             };
-            img.src = `${reader.result}#${Date.now()}`; // ensure cache busting per load
-        };
-        reader.readAsDataURL(file);
+            img.onerror = reject;
+            img.src = `${dataUrl}#${Date.now()}`;
+        });
     }
 
-    async loadBylineFromFile(file, side) {
+    async loadBylineFromBytes(bytes, side) {
         try {
-            const buffer = await file.arrayBuffer();
-            const bytes = new Uint8Array(buffer);
             const iptcByline = this.readIptcByline(bytes);
             const xmp = iptcByline ? null : this.readXmpPacket(bytes);
             const parsed = iptcByline || (xmp ? this.extractBylineFromXmp(xmp) : '');
@@ -299,6 +383,123 @@ class Banfinator {
         } catch (err) {
             console.warn('Metadata read skipped', err);
         }
+    }
+
+    async loadColorProfiles() {
+        const profileMap = {
+            sRGB: 'colorprofiles/sRGB.icc',
+            AdobeRGB: 'colorprofiles/ARGB.icc',
+            DCI: 'colorprofiles/DCI.icc'
+        };
+
+        const entries = await Promise.all(
+            Object.entries(profileMap).map(async ([key, path]) => {
+                const response = await fetch(path);
+                const buffer = await response.arrayBuffer();
+                return [key, new Uint8Array(buffer)];
+            })
+        );
+
+        this.iccProfiles = Object.fromEntries(entries);
+    }
+
+    async ensureProfilesLoaded() {
+        if (!this.profilePromise) return;
+        try {
+            await this.profilePromise;
+        } catch (err) {
+            console.warn('ICC-profiler kunde inte laddas', err);
+            this.iccProfiles = this.iccProfiles || {};
+            this.profilePromise = null;
+        }
+    }
+
+    async convertBufferToSrgbDataUrl(bytes, mimeType = 'image/jpeg') {
+        await this.ensureProfilesLoaded();
+        const blob = new Blob([bytes], { type: mimeType });
+        try {
+            const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'default' });
+            const canvas = typeof OffscreenCanvas !== 'undefined'
+                ? new OffscreenCanvas(bitmap.width, bitmap.height)
+                : Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
+
+            if (!canvas.width || !canvas.height) {
+                return await this.blobToDataUrl(blob);
+            }
+
+            const ctx = canvas.getContext('2d', { colorSpace: 'srgb' }) || canvas.getContext('2d');
+            ctx.drawImage(bitmap, 0, 0);
+
+            const outputBlob = canvas.convertToBlob
+                ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 1 })
+                : await new Promise((resolve, reject) => {
+                    canvas.toBlob((result) => {
+                        if (result) resolve(result);
+                        else reject(new Error('Canvas toBlob failed'));
+                    }, 'image/jpeg', 1);
+                });
+
+            return await this.blobToDataUrl(outputBlob);
+        } catch (err) {
+            console.warn('Color-managed decode failed, falling back to original data', err);
+            return await this.blobToDataUrl(blob);
+        }
+    }
+
+    async blobToDataUrl(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    async detectColorProfile(bytes) {
+        await this.ensureProfilesLoaded();
+        const embedded = this.extractIccProfile(bytes);
+        if (!embedded) return 'Unknown';
+        if (this.iccProfiles?.sRGB && this.buffersEqual(embedded, this.iccProfiles.sRGB)) return 'sRGB';
+        if (this.iccProfiles?.AdobeRGB && this.buffersEqual(embedded, this.iccProfiles.AdobeRGB)) return 'Adobe RGB 1998';
+        if (this.iccProfiles?.DCI && this.buffersEqual(embedded, this.iccProfiles.DCI)) return 'DCI-P3';
+        return 'Embedded ICC';
+    }
+
+    extractIccProfile(bytes) {
+        const iccSegments = [];
+        let offset = 2;
+        while (offset + 4 < bytes.length) {
+            if (bytes[offset] !== 0xff) break;
+            const marker = bytes[offset + 1];
+            if (marker === 0xda) break;
+            const length = (bytes[offset + 2] << 8) + bytes[offset + 3];
+            const start = offset + 4;
+            const end = offset + 2 + length;
+            if (marker === 0xe2) {
+                const header = new TextEncoder().encode('ICC_PROFILE\0');
+                if (this.startsWithArray(bytes.slice(start, start + header.length), header)) {
+                    const sequenceNumber = bytes[start + header.length];
+                    const totalSegments = bytes[start + header.length + 1];
+                    const payload = bytes.slice(start + header.length + 2, end);
+                    iccSegments.push({ sequenceNumber, totalSegments, payload });
+                }
+            }
+            offset = end;
+        }
+
+        if (!iccSegments.length) return null;
+        const total = iccSegments[0].totalSegments || 1;
+        const ordered = iccSegments
+            .filter((seg) => seg.sequenceNumber <= total)
+            .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+        const totalLength = ordered.reduce((sum, seg) => sum + seg.payload.length, 0);
+        const merged = new Uint8Array(totalLength);
+        let writeOffset = 0;
+        ordered.forEach((seg) => {
+            merged.set(seg.payload, writeOffset);
+            writeOffset += seg.payload.length;
+        });
+        return merged;
     }
 
     readXmpPacket(bytes) {
@@ -567,6 +768,7 @@ class Banfinator {
         [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
         [this.transforms.left, this.transforms.right] = [this.transforms.right, this.transforms.left];
         [this.bureauSuffixes.left, this.bureauSuffixes.right] = [this.bureauSuffixes.right, this.bureauSuffixes.left];
+        [this.colorProfiles.left, this.colorProfiles.right] = [this.colorProfiles.right, this.colorProfiles.left];
 
         this.setZoom('left', this.transforms.left.scale);
         this.setZoom('right', this.transforms.right.scale);
@@ -585,9 +787,25 @@ class Banfinator {
         const left = this.bureauSuffixes.left;
         const right = this.bureauSuffixes.right;
         const sameSuffix = left && right && left === right;
+        const hasImages = this.images.left || this.images.right;
+        const messages = [];
 
         if (sameSuffix) {
-            this.suffixInfoBox.textContent = `Båda bilderna är ${left}`;
+            messages.push(`Båda bilderna är ${left}`);
+        }
+
+        const leftProfile = this.colorProfiles.left || 'Okänd profil';
+        const rightProfile = this.colorProfiles.right || 'Okänd profil';
+        if (hasImages) {
+            if (leftProfile === rightProfile && leftProfile !== 'Okänd profil') {
+                messages.push(`Profiler: ${leftProfile} → sRGB`);
+            } else {
+                messages.push(`Profiler: vänster ${leftProfile}, höger ${rightProfile} → sRGB`);
+            }
+        }
+
+        if (messages.length) {
+            this.suffixInfoBox.textContent = messages.join(' · ');
             this.suffixInfoBox.hidden = false;
         } else {
             this.suffixInfoBox.hidden = true;
@@ -657,6 +875,14 @@ class Banfinator {
         return true;
     }
 
+    buffersEqual(a, b) {
+        if (!a || !b || a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    }
+
     buildApp13Segment(byline) {
         if (!byline) return null;
         const encoder = new TextEncoder();
@@ -722,6 +948,14 @@ class Banfinator {
             if (resourceId === 0x0404) return true;
         }
         return false;
+    }
+
+    isIccSegment(segment) {
+        if (segment[0] !== 0xff || segment[1] !== 0xe2) return false;
+        const length = (segment[2] << 8) + segment[3];
+        const content = segment.slice(4, 4 + length - 2);
+        const identifier = new TextEncoder().encode('ICC_PROFILE\0');
+        return this.startsWithArray(content, identifier);
     }
 
     concatUint8Arrays(...arrays) {
