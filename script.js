@@ -2,6 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
+        this.version = '1.0';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -181,20 +182,21 @@ class Banfinator {
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
         const byline = this.sanitizeBylineValue(this.bylineInput.value);
+        const exportedAt = new Date();
 
         const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
-        const finalDataUrl = byline ? this.injectXmpByline(baseDataUrl, byline) : baseDataUrl;
+        const finalDataUrl = byline ? this.injectXmpByline(baseDataUrl, byline, exportedAt) : baseDataUrl;
 
         link.download = `banfinator_${timestamp}.jpg`;
         link.href = finalDataUrl;
         link.click();
     }
 
-    injectXmpByline(dataUrl, byline) {
+    injectXmpByline(dataUrl, byline, exportedAt) {
         const jpegBytes = this.dataURLToUint8Array(dataUrl);
         const segments = this.splitJpegSegments(jpegBytes);
 
-        const xmpPacket = this.buildXmpPacket(byline);
+        const xmpPacket = this.buildXmpPacket(byline, exportedAt);
         const xmpSegment = this.buildApp1Segment(xmpPacket);
         const xmpIdentifier = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
 
@@ -210,15 +212,18 @@ class Banfinator {
         return this.uint8ArrayToDataURL(merged);
     }
 
-    buildXmpPacket(byline) {
+    buildXmpPacket(byline, exportedAt) {
         const escaped = this.escapeXml(byline);
+        const softwareAgent = this.escapeXml(`The Banfinator ${this.version}`);
+        const when = this.escapeXml(exportedAt.toISOString());
         return (
             `<?xpacket begin='\ufeff' id='W5M0MpCehiHzreSzNTczkc9d'?>\n` +
             `<x:xmpmeta xmlns:x='adobe:ns:meta/'>\n` +
-            `<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n` +
-            `<rdf:Description xmlns:dc='http://purl.org/dc/elements/1.1/'>\n` +
+            `<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:photoshop='http://ns.adobe.com/photoshop/1.0/' xmlns:xmpMM='http://ns.adobe.com/xap/1.0/mm/' xmlns:stEvt='http://ns.adobe.com/xap/1.0/sType/ResourceEvent#'>\n` +
+            `<rdf:Description>\n` +
             `<dc:creator><rdf:Seq><rdf:li>${escaped}</rdf:li></rdf:Seq></dc:creator>\n` +
-            `<dc:description><rdf:Alt><rdf:li xml:lang='x-default'>${escaped}</rdf:li></rdf:Alt></dc:description>\n` +
+            `<photoshop:AuthorsPosition>${escaped}</photoshop:AuthorsPosition>\n` +
+            `<xmpMM:History><rdf:Seq><rdf:li rdf:parseType='Resource'><stEvt:action>saved</stEvt:action><stEvt:softwareAgent>${softwareAgent}</stEvt:softwareAgent><stEvt:when>${when}</stEvt:when></rdf:li></rdf:Seq></xmpMM:History>\n` +
             `</rdf:Description>\n` +
             `</rdf:RDF>\n` +
             `</x:xmpmeta>\n` +
@@ -292,9 +297,10 @@ class Banfinator {
     }
 
     extractByline(xmp) {
+        const bylineMatch = xmp.match(/<photoshop:AuthorsPosition[^>]*>([^<]*)<\/photoshop:AuthorsPosition>/i);
         const creatorMatch = xmp.match(/<dc:creator[^>]*>\s*<rdf:Seq>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
         const descriptionMatch = xmp.match(/<dc:description[^>]*>\s*<rdf:Alt>\s*<rdf:li[^>]*>([^<]*)<\/rdf:li>/i);
-        const raw = creatorMatch?.[1] || descriptionMatch?.[1] || '';
+        const raw = bylineMatch?.[1] || creatorMatch?.[1] || descriptionMatch?.[1] || '';
         return this.unescapeXml(raw.trim());
     }
 
