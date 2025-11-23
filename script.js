@@ -1,8 +1,10 @@
 class Banfinator {
     constructor() {
-        this.canvas = document.getElementById('imageCanvas');
-        this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.01';
+        this.previewCanvas = document.getElementById('imageCanvas');
+        this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
+        this.renderCanvas = this.createRenderSurface();
+        this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
+        this.version = '1.666';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -32,8 +34,10 @@ class Banfinator {
         this.dragState = null;
         this.ratio = 0.5;
         this.dividerWidth = 10;
-        this.canvas.width = 3840;
-        this.canvas.height = 2160;
+        this.renderCanvas.width = 3840;
+        this.renderCanvas.height = 2160;
+        this.previewCanvas.width = 3840;
+        this.previewCanvas.height = 2160;
         this.profilePromise = this.loadColorProfiles();
         this.bindEvents();
         this.resetMetadataInputs();
@@ -41,6 +45,12 @@ class Banfinator {
         this.updateButtonState();
         this.clearCaches();
         this.draw();
+    }
+
+    createRenderSurface() {
+        return typeof OffscreenCanvas !== 'undefined'
+            ? new OffscreenCanvas(3840, 2160)
+            : Object.assign(document.createElement('canvas'), { width: 3840, height: 2160 });
     }
 
     bindEvents() {
@@ -71,11 +81,11 @@ class Banfinator {
             btn.addEventListener('click', () => this.resetView(side));
         });
 
-        this.canvas.addEventListener('pointerdown', (e) => this.startDrag(e));
-        this.canvas.addEventListener('pointermove', (e) => this.handleDrag(e));
-        this.canvas.addEventListener('pointerup', (e) => this.stopDrag(e));
-        this.canvas.addEventListener('pointerleave', (e) => this.stopDrag(e));
-        this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+        this.previewCanvas.addEventListener('pointerdown', (e) => this.startDrag(e));
+        this.previewCanvas.addEventListener('pointermove', (e) => this.handleDrag(e));
+        this.previewCanvas.addEventListener('pointerup', (e) => this.stopDrag(e));
+        this.previewCanvas.addEventListener('pointerleave', (e) => this.stopDrag(e));
+        this.previewCanvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
     }
 
     clearCaches() {
@@ -137,7 +147,29 @@ class Banfinator {
     }
 
     draw() {
-        this.paintComposite(this.ctx, this.canvas.width, this.canvas.height);
+        this.renderComposite();
+        this.presentPreview();
+    }
+
+    renderComposite() {
+        if (!this.renderCtx) return;
+        this.paintComposite(this.renderCtx, this.renderCanvas.width, this.renderCanvas.height);
+    }
+
+    presentPreview() {
+        if (!this.previewCtx || !this.renderCanvas) return;
+        this.previewCtx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+        this.previewCtx.drawImage(
+            this.renderCanvas,
+            0,
+            0,
+            this.renderCanvas.width,
+            this.renderCanvas.height,
+            0,
+            0,
+            this.previewCanvas.width,
+            this.previewCanvas.height
+        );
     }
 
     paintComposite(ctx, width, height) {
@@ -205,11 +237,9 @@ class Banfinator {
         const exportedAt = new Date();
         const srgbProfile = await this.getSrgbProfileBytes();
 
-        const compositeCanvas = this.buildExportCanvas();
-        const exportCtx = compositeCanvas.getContext('2d', { colorSpace: 'srgb' }) || compositeCanvas.getContext('2d');
-        this.paintComposite(exportCtx, compositeCanvas.width, compositeCanvas.height);
+        this.renderComposite();
 
-        const baseDataUrl = await this.canvasToSrgbDataUrl(compositeCanvas);
+        const baseDataUrl = await this.canvasToSrgbDataUrl(this.renderCanvas);
         const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt, srgbProfile);
 
         link.download = `TheBanfinator_${timestamp}.jpg`;
@@ -494,12 +524,6 @@ class Banfinator {
         return await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     }
 
-    buildExportCanvas() {
-        return typeof OffscreenCanvas !== 'undefined'
-            ? new OffscreenCanvas(this.canvas.width, this.canvas.height)
-            : Object.assign(document.createElement('canvas'), { width: this.canvas.width, height: this.canvas.height });
-    }
-
     async decodeBitmap(blob) {
         try {
             return await this.decodeToSrgbBitmap(blob, blob.type || 'image/jpeg');
@@ -509,12 +533,7 @@ class Banfinator {
         }
     }
 
-    async canvasToSrgbDataUrl(sourceCanvas = this.canvas) {
-        const exportCtx = sourceCanvas.getContext('2d', { colorSpace: 'srgb' }) || sourceCanvas.getContext('2d');
-        if (!exportCtx) {
-            throw new Error('Export canvas context unavailable');
-        }
-
+    async canvasToSrgbDataUrl(sourceCanvas = this.renderCanvas) {
         if (sourceCanvas.convertToBlob) {
             try {
                 const blob = await sourceCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.95, colorSpace: 'srgb' });
@@ -524,7 +543,16 @@ class Banfinator {
             }
         }
 
-        return sourceCanvas.toDataURL('image/jpeg', 0.95);
+        if (typeof sourceCanvas.toDataURL === 'function') {
+            return sourceCanvas.toDataURL('image/jpeg', 0.95);
+        }
+
+        const fallbackCanvas = document.createElement('canvas');
+        fallbackCanvas.width = sourceCanvas.width;
+        fallbackCanvas.height = sourceCanvas.height;
+        const fallbackCtx = fallbackCanvas.getContext('2d', { colorSpace: 'srgb' }) || fallbackCanvas.getContext('2d');
+        fallbackCtx.drawImage(sourceCanvas, 0, 0);
+        return fallbackCanvas.toDataURL('image/jpeg', 0.95);
     }
 
     async blobToDataUrl(blob) {
@@ -710,7 +738,7 @@ class Banfinator {
     startDrag(event) {
         if (!this.images.left && !this.images.right) return;
         const point = this.getCanvasPoint(event);
-        const dividerX = Math.round(this.ratio * (this.canvas.width - this.dividerWidth));
+        const dividerX = Math.round(this.ratio * (this.renderCanvas.width - this.dividerWidth));
         const side = point.x < dividerX ? 'left' : (point.x > dividerX + this.dividerWidth ? 'right' : null);
         if (!side || !this.images[side]) return;
 
@@ -723,7 +751,7 @@ class Banfinator {
             originY: this.transforms[side].offsetY
         };
 
-        this.canvas.setPointerCapture(event.pointerId);
+        this.previewCanvas.setPointerCapture(event.pointerId);
     }
 
     handleDrag(event) {
@@ -740,7 +768,7 @@ class Banfinator {
     stopDrag(event) {
         if (!this.dragState) return;
         if (event && event.pointerId !== this.dragState.pointerId) return;
-        this.canvas.releasePointerCapture(this.dragState.pointerId);
+        this.previewCanvas.releasePointerCapture(this.dragState.pointerId);
         this.dragState = null;
     }
 
@@ -749,7 +777,7 @@ class Banfinator {
         event.preventDefault();
 
         const point = this.getCanvasPoint(event);
-        const dividerX = Math.round(this.ratio * (this.canvas.width - this.dividerWidth));
+        const dividerX = Math.round(this.ratio * (this.renderCanvas.width - this.dividerWidth));
         const side = point.x < dividerX ? 'left' : (point.x > dividerX + this.dividerWidth ? 'right' : null);
         if (!side || !this.images[side]) return;
 
@@ -758,9 +786,9 @@ class Banfinator {
     }
 
     getCanvasPoint(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const rect = this.previewCanvas.getBoundingClientRect();
+        const scaleX = this.previewCanvas.width / rect.width;
+        const scaleY = this.previewCanvas.height / rect.height;
         return {
             x: (event.clientX - rect.left) * scaleX,
             y: (event.clientY - rect.top) * scaleY
@@ -771,14 +799,14 @@ class Banfinator {
         const img = this.images[side];
         if (!img) return;
         const region = this.getRegionForSide(side);
-        const metrics = this.computeBaseMetrics(img, region, this.canvas.height, side);
-        const clamped = this.clampOffsetsForRegion(offsetX, offsetY, metrics, region, this.canvas.height);
+        const metrics = this.computeBaseMetrics(img, region, this.renderCanvas.height, side);
+        const clamped = this.clampOffsetsForRegion(offsetX, offsetY, metrics, region, this.renderCanvas.height);
         this.transforms[side].offsetX = clamped.x;
         this.transforms[side].offsetY = clamped.y;
     }
 
     getRegionForSide(side) {
-        const width = this.canvas.width;
+        const width = this.renderCanvas.width;
         const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
         if (side === 'left') {
             return { x: 0, width: dividerX };
@@ -795,8 +823,8 @@ class Banfinator {
         if (targetScale === currentScale) return;
 
         const region = this.getRegionForSide(side);
-        const currentMetrics = this.computeBaseMetrics(img, region, this.canvas.height, side, currentScale);
-        const newMetrics = this.computeBaseMetrics(img, region, this.canvas.height, side, targetScale);
+        const currentMetrics = this.computeBaseMetrics(img, region, this.renderCanvas.height, side, currentScale);
+        const newMetrics = this.computeBaseMetrics(img, region, this.renderCanvas.height, side, targetScale);
 
         const imageX = (point.x - (currentMetrics.dxBase + this.transforms[side].offsetX)) / currentMetrics.scale;
         const imageY = (point.y - (currentMetrics.dyBase + this.transforms[side].offsetY)) / currentMetrics.scale;
