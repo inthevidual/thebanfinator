@@ -293,6 +293,7 @@ class Banfinator {
             const parsed = iptcByline || (xmp ? this.extractBylineFromXmp(xmp) : '');
             this.bylineSources[side] = this.sanitizeBylineValue(parsed || '');
             this.updateBylineField();
+            this.updateSuffixInfo();
         } catch (err) {
             console.warn('Metadata read skipped', err);
         }
