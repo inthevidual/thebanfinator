@@ -2,7 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.4';
+        this.version = '1.5';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -202,7 +202,7 @@ class Banfinator {
         const exportedAt = new Date();
         const srgbProfile = await this.getSrgbProfileBytes();
 
-        const baseDataUrl = this.canvas.toDataURL('image/jpeg', 0.95);
+        const baseDataUrl = await this.canvasToSrgbDataUrl();
         const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt, srgbProfile);
 
         link.download = `TheBanfinator_${timestamp}.jpg`;
@@ -449,7 +449,7 @@ class Banfinator {
         await this.ensureProfilesLoaded();
         const blob = new Blob([bytes], { type: mimeType });
         try {
-            const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'default' });
+            const bitmap = await this.decodeToSrgbBitmap(blob, mimeType);
             const canvas = typeof OffscreenCanvas !== 'undefined'
                 ? new OffscreenCanvas(bitmap.width, bitmap.height)
                 : Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
@@ -462,7 +462,7 @@ class Banfinator {
             ctx.drawImage(bitmap, 0, 0);
 
             const outputBlob = canvas.convertToBlob
-                ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 1 })
+                ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 1, colorSpace: 'srgb' })
                 : await new Promise((resolve, reject) => {
                     canvas.toBlob((result) => {
                         if (result) resolve(result);
@@ -475,6 +475,33 @@ class Banfinator {
             console.warn('Color-managed decode failed, falling back to original data', err);
             return await this.blobToDataUrl(blob);
         }
+    }
+
+    async decodeToSrgbBitmap(blob, mimeType) {
+        if (typeof ImageDecoder !== 'undefined') {
+            try {
+                const decoder = new ImageDecoder({ data: blob, type: mimeType, colorSpaceConversion: 'default' });
+                const { image } = await decoder.decode({ completeFramesOnly: true });
+                return image;
+            } catch (err) {
+                console.warn('ImageDecoder fallback to createImageBitmap', err);
+            }
+        }
+
+        return await createImageBitmap(blob, { colorSpaceConversion: 'default', premultiplyAlpha: 'none' });
+    }
+
+    async canvasToSrgbDataUrl() {
+        if (this.canvas.convertToBlob) {
+            try {
+                const blob = await this.canvas.convertToBlob({ type: 'image/jpeg', quality: 0.95, colorSpace: 'srgb' });
+                return await this.blobToDataUrl(blob);
+            } catch (err) {
+                console.warn('convertToBlob with color space failed, falling back to toDataURL', err);
+            }
+        }
+
+        return this.canvas.toDataURL('image/jpeg', 0.95);
     }
 
     async blobToDataUrl(blob) {
