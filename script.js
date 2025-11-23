@@ -4,7 +4,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '2.1';
+        this.version = '2.2';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -65,6 +65,7 @@ class Banfinator {
 
         this.setupDropZone(document.querySelector('[data-side="left"]'), this.leftInput, 'left');
         this.setupDropZone(document.querySelector('[data-side="right"]'), this.rightInput, 'right');
+        this.setupCanvasDropTarget();
 
         this.bylineInput.addEventListener('input', () => {
             this.bylineDirty = true;
@@ -111,13 +112,7 @@ class Banfinator {
     }
 
     setupDropZone(zone, input, side) {
-        const handleFiles = async (files) => {
-            const file = files?.[0];
-            if (!file) return;
-
-            this.setBureauSuffix(side, '');
-            await this.handleFileUpload(file, side, zone);
-        };
+        const handleFiles = async (files) => this.processFilesForSide(files, side, zone);
 
         zone.addEventListener('click', () => input.click());
         input.addEventListener('change', (e) => handleFiles(e.target.files));
@@ -134,6 +129,56 @@ class Banfinator {
             zone.classList.remove('dragover');
             handleFiles(e.dataTransfer.files);
         });
+    }
+
+    setupCanvasDropTarget() {
+        if (!this.previewCanvas) return;
+        const frame = this.previewCanvas.closest('.canvas-frame');
+
+        const getSideFromEvent = (event) => {
+            const point = this.getCanvasPoint(event);
+            const dividerX = Math.round(this.ratio * (this.renderCanvas.width - this.dividerWidth));
+            if (point.x < dividerX) return 'left';
+            if (point.x > dividerX + this.dividerWidth) return 'right';
+            return null;
+        };
+
+        const clearState = () => {
+            this.previewCanvas.classList.remove('dragover-left', 'dragover-right');
+            frame?.classList.remove('dragover', 'dragover-left', 'dragover-right');
+        };
+
+        this.previewCanvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const side = getSideFromEvent(e);
+            this.previewCanvas.classList.remove('dragover-left', 'dragover-right');
+            frame?.classList.remove('dragover-left', 'dragover-right');
+            frame?.classList.add('dragover');
+            if (side) {
+                this.previewCanvas.classList.add(`dragover-${side}`);
+                frame?.classList.add(`dragover-${side}`);
+            }
+        });
+
+        this.previewCanvas.addEventListener('dragleave', () => clearState());
+
+        this.previewCanvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const side = getSideFromEvent(e);
+            clearState();
+            if (!side) return;
+            const zone = document.querySelector(`.drop-zone[data-side="${side}"]`);
+            this.processFilesForSide(e.dataTransfer.files, side, zone);
+        });
+    }
+
+    async processFilesForSide(files, side, zone) {
+        const file = files?.[0];
+        if (!file) return;
+
+        this.bylineDirty = false;
+        this.setBureauSuffix(side, '');
+        await this.handleFileUpload(file, side, zone);
     }
 
     updateReadout() {
