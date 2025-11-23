@@ -2,7 +2,7 @@ class Banfinator {
     constructor() {
         this.canvas = document.getElementById('imageCanvas');
         this.ctx = this.canvas.getContext('2d', { colorSpace: 'srgb' }) || this.canvas.getContext('2d');
-        this.version = '1.5';
+        this.version = '1.6';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -401,7 +401,7 @@ class Banfinator {
 
     async loadColorProfiles() {
         const profileMap = {
-            sRGB: 'colorprofiles/sRGB.icc',
+            sRGB: 'colorprofiles/sRGB2014.icc',
             AdobeRGB: 'colorprofiles/ARGB.icc',
             DCI: 'colorprofiles/DCI.icc'
         };
@@ -434,7 +434,7 @@ class Banfinator {
         if (this.iccProfiles?.sRGB) return this.iccProfiles.sRGB;
 
         try {
-            const response = await fetch('colorprofiles/sRGB.icc');
+            const response = await fetch('colorprofiles/sRGB2014.icc');
             const buffer = await response.arrayBuffer();
             const profile = new Uint8Array(buffer);
             this.iccProfiles = { ...(this.iccProfiles || {}), sRGB: profile };
@@ -517,7 +517,7 @@ class Banfinator {
         await this.ensureProfilesLoaded();
         const embedded = this.extractIccProfile(bytes);
         if (!embedded) return 'Unknown';
-        if (this.iccProfiles?.sRGB && this.buffersEqual(embedded, this.iccProfiles.sRGB)) return 'sRGB';
+        if (this.iccProfiles?.sRGB && this.buffersEqual(embedded, this.iccProfiles.sRGB)) return 'sRGB 2014';
         if (this.iccProfiles?.AdobeRGB && this.buffersEqual(embedded, this.iccProfiles.AdobeRGB)) return 'Adobe RGB 1998';
         if (this.iccProfiles?.DCI && this.buffersEqual(embedded, this.iccProfiles.DCI)) return 'DCI-P3';
         return 'Embedded ICC';
