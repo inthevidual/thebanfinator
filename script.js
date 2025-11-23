@@ -4,7 +4,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '1.666';
+        this.version = '2.0';
         this.splitSlider = document.getElementById('splitSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
@@ -924,21 +924,13 @@ class Banfinator {
         const left = this.bureauSuffixes.left;
         const right = this.bureauSuffixes.right;
         const sameSuffix = left && right && left === right;
-        const hasImages = this.images.left || this.images.right;
         const messages = [];
 
         if (sameSuffix) {
             messages.push(`Båda bilderna är ${left}`);
-        }
-
-        const leftProfile = this.colorProfiles.left || 'Okänd profil';
-        const rightProfile = this.colorProfiles.right || 'Okänd profil';
-        if (hasImages) {
-            if (leftProfile === rightProfile && leftProfile !== 'Okänd profil') {
-                messages.push(`Profiler: ${leftProfile} → sRGB`);
-            } else {
-                messages.push(`Profiler: vänster ${leftProfile}, höger ${rightProfile} → sRGB`);
-            }
+        } else {
+            if (left) messages.push(`Vänster: ${left}`);
+            if (right) messages.push(`Höger: ${right}`);
         }
 
         if (messages.length) {
