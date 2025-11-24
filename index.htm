@@ -26,9 +26,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-      <link rel="icon" type="image/svg+xml" href="banf.svg?v=3.0.0">
-      <link rel="alternate icon" href="banf.svg?v=3.0.0">
-      <link rel="stylesheet" href="banfinator-styles.css?v=3.0.0">
+      <link rel="icon" type="image/svg+xml" href="banf.svg?v=3.0.1">
+      <link rel="alternate icon" href="banf.svg?v=3.0.1">
+      <link rel="stylesheet" href="banfinator-styles.css?v=3.0.1">
 </head>
 <body class="bg-base text-body">
     <div class="app-shell container py-4">
@@ -36,7 +36,7 @@
             <div class="card gradient-card border-0 shadow-lg overflow-hidden">
                 <div class="card-body d-flex flex-column flex-lg-row align-items-center gap-3">
                     <div class="brand-mark-wrap">
-                        <img src="banf.svg?v=3.0.0" alt="The Banfinator" class="brand-mark">
+                        <img src="banf.svg?v=3.0.1" alt="The Banfinator" class="brand-mark">
                     </div>
                     <div class="brand-copy flex-grow-1">
                         <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 justify-content-between w-100">
@@ -44,7 +44,7 @@
                                 <div class="brand-line">THE BANFINATOR</div>
                                 <div class="brand-tagline d-flex align-items-center flex-wrap gap-2">
                                     <span>a passion project ❤️ from CP-Tjänst</span>
-                                    <span class="brand-version-inline">v3.0.0</span>
+                                    <span class="brand-version-inline">v3.0.1</span>
                                 </div>
                             </div>
                             <div class="layout-toggle-stack ms-md-3" role="group" aria-label="Välj antal bilder">
@@ -59,16 +59,6 @@
 
         <section class="upload-grid mb-4">
             <div class="row g-3">
-                <div class="col-md-4 layout-three-only">
-                    <div class="drop-zone card h-100" data-side="center">
-                        <div class="card-body d-flex flex-column justify-content-center text-center">
-                            <span class="pill me-auto ms-auto">Mitten</span>
-                            <h3 class="h5 mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
-                            <p class="text-muted mb-0">Bilden placeras i mitten</p>
-                        </div>
-                        <input type="file" id="centerFileInput" accept="image/jpeg,image/jpg" hidden>
-                    </div>
-                </div>
                 <div class="col-md-4 flex-grow-1">
                     <div class="drop-zone card h-100" data-side="left">
                         <div class="card-body d-flex flex-column justify-content-center text-center">
@@ -77,6 +67,16 @@
                             <p class="text-muted mb-0">Bilden placeras på vänster sida</p>
                         </div>
                         <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" hidden>
+                    </div>
+                </div>
+                <div class="col-md-4 layout-three-only">
+                    <div class="drop-zone card h-100" data-side="center">
+                        <div class="card-body d-flex flex-column justify-content-center text-center">
+                            <span class="pill me-auto ms-auto">Mitten</span>
+                            <h3 class="h5 mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
+                            <p class="text-muted mb-0">Bilden placeras i mitten</p>
+                        </div>
+                        <input type="file" id="centerFileInput" accept="image/jpeg,image/jpg" hidden>
                     </div>
                 </div>
                 <div class="col-md-4 flex-grow-1">
@@ -121,7 +121,7 @@
                 <div class="w-100 layout-three-only">
                     <div class="shuffle-grid d-flex flex-column gap-2">
                         <div class="shuffle-row" data-side="left">
-                            <span class="pill pill-small">A</span>
+                            <span class="pill pill-small" data-label-target="left">A</span>
                             <div class="shuffle-actions">
                                 <button class="btn btn-outline-accent btn-sm" data-shift="left">
                                     ◀
@@ -132,7 +132,7 @@
                             </div>
                         </div>
                         <div class="shuffle-row" data-side="center">
-                            <span class="pill pill-small">B</span>
+                            <span class="pill pill-small" data-label-target="center">B</span>
                             <div class="shuffle-actions">
                                 <button class="btn btn-outline-accent btn-sm" data-shift="left">
                                     ◀
@@ -143,7 +143,7 @@
                             </div>
                         </div>
                         <div class="shuffle-row" data-side="right">
-                            <span class="pill pill-small">C</span>
+                            <span class="pill pill-small" data-label-target="right">C</span>
                             <div class="shuffle-actions">
                                 <button class="btn btn-outline-accent btn-sm" data-shift="left">
                                     ◀
@@ -160,18 +160,6 @@
 
         <section class="tuning-grid mb-3" aria-label="Zoom och position">
             <div class="row g-3">
-                <div class="col-md-4 layout-three-only">
-                    <div class="tuning-card card h-100" data-side="center">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <span class="pill">Mitten</span>
-                                <button type="button" class="btn btn-outline-accent btn-sm" data-reset="center">Återställ vy</button>
-                            </div>
-                            <label for="centerZoom" class="form-label text-muted">Zoom</label>
-                            <input type="range" id="centerZoom" class="form-range" min="1" max="3" step="0.01" value="1" aria-label="Zooma mittenbild">
-                        </div>
-                    </div>
-                </div>
                 <div class="col-md-4">
                     <div class="tuning-card card h-100" data-side="left">
                         <div class="card-body">
@@ -181,6 +169,18 @@
                             </div>
                             <label for="leftZoom" class="form-label text-muted">Zoom</label>
                             <input type="range" id="leftZoom" class="form-range" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 layout-three-only">
+                    <div class="tuning-card card h-100" data-side="center">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="pill">Mitten</span>
+                                <button type="button" class="btn btn-outline-accent btn-sm" data-reset="center">Återställ vy</button>
+                            </div>
+                            <label for="centerZoom" class="form-label text-muted">Zoom</label>
+                            <input type="range" id="centerZoom" class="form-range" min="1" max="3" step="0.01" value="1" aria-label="Zooma mittenbild">
                         </div>
                     </div>
                 </div>
@@ -198,6 +198,9 @@
                 </div>
             </div>
         </section>
+        <div class="d-flex justify-content-center mb-2">
+            <button id="resetLayoutBtn" class="btn btn-reset btn-sm">Rensa layout</button>
+        </div>
         <p class="footnote footnote-centered">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
 
         <section class="canvas-stage card mb-4">
@@ -225,6 +228,6 @@
 
     <footer class="site-footer text-center py-3">❤️ &amp; © CP-Tjänst/Jesper Sandström 2025</footer>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="script.js?v=3.0.0"></script>
+      <script src="script.js?v=3.0.1"></script>
 </body>
 </html>
