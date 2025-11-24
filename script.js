@@ -5,7 +5,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '3.0.2';
+        this.version = '3.0.3';
         this.splitSlider = document.getElementById('splitSlider');
         this.tripleLeftSlider = document.getElementById('tripleLeftSlider');
         this.tripleRightSlider = document.getElementById('tripleRightSlider');
@@ -37,7 +37,7 @@ class Banfinator {
         this.images = { left: null, center: null, right: null };
         this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
         this.bureauSuffixes = { left: '', center: '', right: '' };
-        this.imageLabels = { left: null, center: null, right: null };
+        this.imageLabels = { left: 'A', center: 'B', right: 'C' };
         this.labelPool = ['A', 'B', 'C'];
         this.overlayLabels = {};
         this.transforms = {
@@ -189,7 +189,7 @@ class Banfinator {
             this.bylineSources[side] = '';
             this.bureauSuffixes[side] = '';
             this.colorProfiles[side] = '';
-            this.imageLabels[side] = null;
+            this.assignLabelToSide(side);
             const dropZone = document.querySelector(`.drop-zone[data-side="${side}"]`);
             dropZone?.classList.remove('loaded');
             const input = this[`${side}Input`];
@@ -280,7 +280,7 @@ class Banfinator {
         if (!this.splitReadout) return;
         if (this.layoutMode === 'three') {
             const widths = this.getTripleWidths();
-            this.splitReadout.textContent = `A: ${widths.left}% | B: ${widths.center}% | C: ${widths.right}%`;
+            this.splitReadout.textContent = `Vänster: ${widths.left}% | Mitten: ${widths.center}% | Höger: ${widths.right}%`;
             return;
         }
 
@@ -350,14 +350,8 @@ class Banfinator {
     }
 
     assignLabelToSide(side) {
-        const usedLabels = new Set(
-            Object.entries(this.imageLabels)
-                .filter(([key, value]) => key !== side && value)
-                .map(([, value]) => value)
-        );
-        const preferred = this.imageLabels[side];
-        const available = this.labelPool.find((label) => !usedLabels.has(label));
-        this.imageLabels[side] = preferred && !usedLabels.has(preferred) ? preferred : available || preferred || this.labelPool[0];
+        const defaultLabel = this.labelPool[['left', 'center', 'right'].indexOf(side)] || this.labelPool[0];
+        this.imageLabels[side] = defaultLabel;
     }
 
     updateLabelPills() {
@@ -412,7 +406,7 @@ class Banfinator {
             });
         };
 
-        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles', 'imageLabels'].forEach((key) => reorderMap(this[key]));
+        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => reorderMap(this[key]));
 
         this.getActiveSides().forEach((entry) => {
             if (this.zoomInputs[entry]) {
@@ -427,7 +421,7 @@ class Banfinator {
 
     swapTwoImages() {
         if (this.layoutMode !== 'two') return;
-        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles', 'imageLabels'].forEach((key) => {
+        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => {
             [this[key].left, this[key].right] = [this[key].right, this[key].left];
         });
         this.setZoom('left', this.transforms.left.scale);
@@ -1173,7 +1167,7 @@ class Banfinator {
     buildCombinedByline() {
         const sides = this.getActiveSides();
         const bylines = sides.map((side) => this.bylineSources[side]);
-        if (this.layoutMode === 'three' && this.shouldMergeSuffixes()) {
+        if (this.shouldMergeSuffixes()) {
             const suffix = this.bureauSuffixes[sides[0]];
             const stripped = bylines.map((entry) => this.stripMatchingSuffix(entry, suffix));
             const merged = this.mergeBylines(stripped);
@@ -1191,7 +1185,6 @@ class Banfinator {
     }
 
     shouldMergeSuffixes() {
-        if (this.layoutMode !== 'three') return false;
         const sides = this.getActiveSides();
         const suffixes = sides.map((side) => this.bureauSuffixes[side]).filter(Boolean);
         if (suffixes.length < sides.length) return false;
@@ -1273,8 +1266,12 @@ class Banfinator {
             return;
         }
 
-        const suffix = this.bureauSuffixes[this.getActiveSides()[0]];
-        this.suffixInfoBox.textContent = `Alla tre bilder är ${suffix} – suffix slås ihop automatiskt.`;
+        const activeSides = this.getActiveSides();
+        const suffix = this.bureauSuffixes[activeSides[0]];
+        this.suffixInfoBox.textContent =
+            activeSides.length === 2
+                ? `Båda bilderna är ${suffix} – suffix slås ihop automatiskt.`
+                : `Alla tre bilder är ${suffix} – suffix slås ihop automatiskt.`;
         this.suffixInfoBox.hidden = false;
     }
 
