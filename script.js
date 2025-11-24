@@ -4,35 +4,44 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '2.5.2';
+        this.version = '3.0.0';
         this.splitSlider = document.getElementById('splitSlider');
+        this.tripleLeftSlider = document.getElementById('tripleLeftSlider');
+        this.tripleRightSlider = document.getElementById('tripleRightSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
         this.bylineInput = document.getElementById('bylineInput');
         this.suffixInfoBox = document.getElementById('suffixInfo');
-        this.swapBtn = document.getElementById('swapSides');
+        this.layoutToggleButtons = document.querySelectorAll('[data-layout-mode]');
+        this.swapButton = document.getElementById('swapButton');
         this.leftInput = document.getElementById('leftFileInput');
+        this.centerInput = document.getElementById('centerFileInput');
         this.rightInput = document.getElementById('rightFileInput');
         this.zoomInputs = {
             left: document.getElementById('leftZoom'),
+            center: document.getElementById('centerZoom'),
             right: document.getElementById('rightZoom')
         };
         this.resetButtons = {
             left: document.querySelector('[data-reset="left"]'),
+            center: document.querySelector('[data-reset="center"]'),
             right: document.querySelector('[data-reset="right"]')
         };
-        this.images = { left: null, right: null };
+        this.images = { left: null, center: null, right: null };
         this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
-        this.bureauSuffixes = { left: '', right: '' };
+        this.bureauSuffixes = { left: '', center: '', right: '' };
         this.transforms = {
             left: { scale: 1, offsetX: 0, offsetY: 0 },
+            center: { scale: 1, offsetX: 0, offsetY: 0 },
             right: { scale: 1, offsetX: 0, offsetY: 0 }
         };
-        this.bylineSources = { left: '', right: '' };
-        this.colorProfiles = { left: '', right: '' };
+        this.bylineSources = { left: '', center: '', right: '' };
+        this.colorProfiles = { left: '', center: '', right: '' };
         this.bylineDirty = false;
         this.dragState = null;
         this.ratio = 0.5;
+        this.layoutMode = 'two';
+        this.tripleBoundaries = { left: 33, right: 67 };
         this.dividerWidth = 10;
         this.renderCanvas.width = 3840;
         this.renderCanvas.height = 2160;
@@ -40,6 +49,7 @@ class Banfinator {
         this.previewCanvas.height = 2160;
         this.profilePromise = this.loadColorProfiles();
         this.bindEvents();
+        this.applyLayoutMode(this.layoutMode);
         this.resetMetadataInputs();
         this.updateReadout();
         this.updateButtonState();
@@ -54,16 +64,28 @@ class Banfinator {
     }
 
     bindEvents() {
-        this.splitSlider.addEventListener('input', (e) => {
+        this.splitSlider?.addEventListener('input', (e) => {
             this.ratio = e.target.value / 100;
             this.updateReadout();
             this.draw();
         });
 
+        this.tripleLeftSlider?.addEventListener('input', (e) => {
+            this.setTripleBoundary('left', parseFloat(e.target.value));
+        });
+
+        this.tripleRightSlider?.addEventListener('input', (e) => {
+            this.setTripleBoundary('right', parseFloat(e.target.value));
+        });
+
+        this.layoutToggleButtons.forEach((btn) => {
+            btn.addEventListener('click', () => this.setLayoutMode(btn.dataset.layoutMode));
+        });
+        this.swapButton?.addEventListener('click', () => this.swapTwoImages());
         this.exportBtn.addEventListener('click', () => this.export());
-        this.swapBtn.addEventListener('click', () => this.swapSides());
 
         this.setupDropZone(document.querySelector('[data-side="left"]'), this.leftInput, 'left');
+        this.setupDropZone(document.querySelector('[data-side="center"]'), this.centerInput, 'center');
         this.setupDropZone(document.querySelector('[data-side="right"]'), this.rightInput, 'right');
         this.setupCanvasDropTarget();
 
@@ -79,7 +101,16 @@ class Banfinator {
         });
 
         Object.entries(this.resetButtons).forEach(([side, btn]) => {
-            btn.addEventListener('click', () => this.resetView(side));
+            btn?.addEventListener('click', () => this.resetView(side));
+        });
+
+        document.querySelectorAll('.shuffle-row').forEach((row) => {
+            const side = row.getAttribute('data-side');
+            row.querySelectorAll('[data-shift]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    this.shiftImage(side, btn.getAttribute('data-shift'));
+                });
+            });
         });
 
         this.previewCanvas.addEventListener('pointerdown', (e) => this.startDrag(e));
@@ -106,8 +137,8 @@ class Banfinator {
             this.bylineInput.value = '';
         }
         this.bylineDirty = false;
-        this.bylineSources = { left: '', right: '' };
-        this.bureauSuffixes = { left: '', right: '' };
+        this.bylineSources = { left: '', center: '', right: '' };
+        this.bureauSuffixes = { left: '', center: '', right: '' };
         this.updateSuffixInfo();
     }
 
@@ -137,22 +168,19 @@ class Banfinator {
 
         const getSideFromEvent = (event) => {
             const point = this.getCanvasPoint(event);
-            const dividerX = Math.round(this.ratio * (this.renderCanvas.width - this.dividerWidth));
-            if (point.x < dividerX) return 'left';
-            if (point.x > dividerX + this.dividerWidth) return 'right';
-            return null;
+            return this.getSideForPoint(point.x);
         };
 
         const clearState = () => {
-            this.previewCanvas.classList.remove('dragover-left', 'dragover-right');
-            frame?.classList.remove('dragover', 'dragover-left', 'dragover-right');
+            this.previewCanvas.classList.remove('dragover-left', 'dragover-right', 'dragover-center');
+            frame?.classList.remove('dragover', 'dragover-left', 'dragover-right', 'dragover-center');
         };
 
         this.previewCanvas.addEventListener('dragover', (e) => {
             e.preventDefault();
             const side = getSideFromEvent(e);
-            this.previewCanvas.classList.remove('dragover-left', 'dragover-right');
-            frame?.classList.remove('dragover-left', 'dragover-right');
+            this.previewCanvas.classList.remove('dragover-left', 'dragover-right', 'dragover-center');
+            frame?.classList.remove('dragover-left', 'dragover-right', 'dragover-center');
             frame?.classList.add('dragover');
             if (side) {
                 this.previewCanvas.classList.add(`dragover-${side}`);
@@ -182,15 +210,107 @@ class Banfinator {
     }
 
     updateReadout() {
+        if (!this.splitReadout) return;
+        if (this.layoutMode === 'three') {
+            const widths = this.getTripleWidths();
+            this.splitReadout.textContent = `A: ${widths.left}% | B: ${widths.center}% | C: ${widths.right}%`;
+            return;
+        }
+
         const leftPercent = Math.round(this.ratio * 100);
         const rightPercent = 100 - leftPercent;
-        if (this.splitReadout) {
-            this.splitReadout.textContent = `${leftPercent}% | ${rightPercent}%`;
+        this.splitReadout.textContent = `${leftPercent}% | ${rightPercent}%`;
+    }
+
+    setLayoutMode(mode) {
+        if (!['two', 'three'].includes(mode)) return;
+        if (this.layoutMode === mode) return;
+        this.layoutMode = mode;
+        this.applyLayoutMode(this.layoutMode);
+        this.updateReadout();
+        this.updateButtonState();
+        this.draw();
+    }
+
+    applyLayoutMode(mode) {
+        document.body.classList.toggle('layout-three', mode === 'three');
+        if (this.layoutToggleButtons.length) {
+            this.layoutToggleButtons.forEach((btn) => {
+                const isActive = btn.dataset.layoutMode === mode;
+                btn.classList.toggle('is-active', isActive);
+                btn.classList.toggle('is-muted', !isActive);
+                btn.setAttribute('aria-pressed', isActive);
+            });
+        }
+        this.splitReadout?.setAttribute('aria-live', 'polite');
+        if (mode === 'three') {
+            if (this.tripleLeftSlider) this.tripleLeftSlider.value = this.tripleBoundaries.left;
+            if (this.tripleRightSlider) this.tripleRightSlider.value = this.tripleBoundaries.right;
+        } else if (this.splitSlider) {
+            this.splitSlider.value = this.ratio * 100;
         }
     }
 
+    getActiveSides() {
+        return this.layoutMode === 'three' ? ['left', 'center', 'right'] : ['left', 'right'];
+    }
+
+    setTripleBoundary(which, value) {
+        const minGap = 10;
+        if (which === 'left') {
+            this.tripleBoundaries.left = Math.min(value, this.tripleBoundaries.right - minGap);
+            this.tripleLeftSlider.value = this.tripleBoundaries.left;
+        } else {
+            this.tripleBoundaries.right = Math.max(value, this.tripleBoundaries.left + minGap);
+            this.tripleRightSlider.value = this.tripleBoundaries.right;
+        }
+        this.updateReadout();
+        this.draw();
+    }
+
+    getTripleWidths() {
+        const left = Math.round(this.tripleBoundaries.left);
+        const right = Math.round(100 - this.tripleBoundaries.right);
+        const center = Math.max(0, 100 - left - right);
+        return { left, center, right };
+    }
+
     updateButtonState() {
-        this.exportBtn.disabled = !(this.images.left && this.images.right);
+        const ready = this.getActiveSides().every((side) => this.images[side]);
+        this.exportBtn.disabled = !ready;
+    }
+
+    shiftImage(side, direction) {
+        if (this.layoutMode !== 'three') return;
+        const order = this.getActiveSides();
+        const currentIndex = order.indexOf(side);
+        if (currentIndex === -1) return;
+        const offset = direction === 'left' ? -1 : 1;
+        const targetIndex = currentIndex + offset;
+        if (targetIndex < 0 || targetIndex >= order.length) return;
+
+        const targetSide = order[targetIndex];
+        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => {
+            [this[key][side], this[key][targetSide]] = [this[key][targetSide], this[key][side]];
+        });
+
+        this.setZoom(side, this.transforms[side].scale);
+        this.setZoom(targetSide, this.transforms[targetSide].scale);
+        this.updateBylineField();
+        this.updateSuffixInfo();
+        this.draw();
+    }
+
+    swapTwoImages() {
+        if (this.layoutMode !== 'two') return;
+        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => {
+            [this[key].left, this[key].right] = [this[key].right, this[key].left];
+        });
+        this.setZoom('left', this.transforms.left.scale);
+        this.setZoom('right', this.transforms.right.scale);
+        this.updateBylineField();
+        this.updateSuffixInfo();
+        this.draw();
     }
 
     draw() {
@@ -223,15 +343,13 @@ class Banfinator {
         ctx.fillStyle = '#0c0e12';
         ctx.fillRect(0, 0, width, height);
 
-        const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
-        const leftRegion = { x: 0, width: dividerX };
-        const rightRegion = { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth };
-
-        this.drawImageToRegion(ctx, this.images.left, leftRegion, height, 'left');
-        this.drawImageToRegion(ctx, this.images.right, rightRegion, height, 'right');
+        const { regions, dividers } = this.getLayoutRegions(width);
+        Object.entries(regions).forEach(([side, region]) => {
+            this.drawImageToRegion(ctx, this.images[side], region, height, side);
+        });
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(dividerX, 0, this.dividerWidth, height);
+        dividers.forEach((x) => ctx.fillRect(x, 0, this.dividerWidth, height));
 
     }
 
@@ -274,6 +392,49 @@ class Banfinator {
             x: Math.min(maxOffsetX, Math.max(minOffsetX, offsetX)),
             y: Math.min(maxOffsetY, Math.max(minOffsetY, offsetY))
         };
+    }
+
+    getLayoutRegions(width = this.renderCanvas.width) {
+        if (this.layoutMode === 'two') {
+            const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
+            return {
+                regions: {
+                    left: { x: 0, width: dividerX },
+                    right: { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth }
+                },
+                dividers: [dividerX]
+            };
+        }
+
+        const dividerCount = 2;
+        const availableWidth = width - this.dividerWidth * dividerCount;
+        const splits = this.getTripleWidths();
+        const leftWidth = Math.round((splits.left / 100) * availableWidth);
+        const centerWidth = Math.round((splits.center / 100) * availableWidth);
+        const rightWidth = availableWidth - leftWidth - centerWidth;
+
+        const firstDivider = leftWidth;
+        const secondDivider = leftWidth + this.dividerWidth + centerWidth;
+
+        return {
+            regions: {
+                left: { x: 0, width: leftWidth },
+                center: { x: leftWidth + this.dividerWidth, width: centerWidth },
+                right: { x: secondDivider + this.dividerWidth, width: rightWidth }
+            },
+            dividers: [firstDivider, secondDivider]
+        };
+    }
+
+    getSideForPoint(x) {
+        const { regions, dividers } = this.getLayoutRegions();
+        for (const [side, region] of Object.entries(regions)) {
+            if (x >= region.x && x <= region.x + region.width) return side;
+        }
+
+        const paddedDividers = new Set(dividers.flatMap((d) => [d, d + this.dividerWidth]));
+        if ([...paddedDividers].some((point) => Math.abs(point - x) < this.dividerWidth / 2)) return null;
+        return null;
     }
 
     async export() {
@@ -755,7 +916,7 @@ class Banfinator {
     }
 
     updateBylineField() {
-        const combined = this.mergeBylines(this.bylineSources.left, this.bylineSources.right);
+        const combined = this.mergeBylines(this.getActiveSides().map((side) => this.bylineSources[side]));
         const cleanCurrent = this.sanitizeBylineValue(this.bylineInput.value);
         if (!this.bylineDirty || cleanCurrent === '') {
             this.bylineInput.value = combined;
@@ -783,10 +944,9 @@ class Banfinator {
     }
 
     startDrag(event) {
-        if (!this.images.left && !this.images.right) return;
+        if (!this.getActiveSides().some((side) => this.images[side])) return;
         const point = this.getCanvasPoint(event);
-        const dividerX = Math.round(this.ratio * (this.renderCanvas.width - this.dividerWidth));
-        const side = point.x < dividerX ? 'left' : (point.x > dividerX + this.dividerWidth ? 'right' : null);
+        const side = this.getSideForPoint(point.x);
         if (!side || !this.images[side]) return;
 
         this.dragState = {
@@ -820,12 +980,11 @@ class Banfinator {
     }
 
     handleWheel(event) {
-        if (!this.images.left && !this.images.right) return;
+        if (!this.getActiveSides().some((side) => this.images[side])) return;
         event.preventDefault();
 
         const point = this.getCanvasPoint(event);
-        const dividerX = Math.round(this.ratio * (this.renderCanvas.width - this.dividerWidth));
-        const side = point.x < dividerX ? 'left' : (point.x > dividerX + this.dividerWidth ? 'right' : null);
+        const side = this.getSideForPoint(point.x);
         if (!side || !this.images[side]) return;
 
         const delta = -event.deltaY * 0.0015;
@@ -853,12 +1012,8 @@ class Banfinator {
     }
 
     getRegionForSide(side) {
-        const width = this.renderCanvas.width;
-        const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
-        if (side === 'left') {
-            return { x: 0, width: dividerX };
-        }
-        return { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth };
+        const { regions } = this.getLayoutRegions();
+        return regions[side];
     }
 
     zoomAtPoint(side, delta, point) {
@@ -887,14 +1042,17 @@ class Banfinator {
         this.draw();
     }
 
-    mergeBylines(left, right) {
-        const normalizedLeft = this.normalizeBureauSpacing(this.sanitizeBylineValue(left));
-        const normalizedRight = this.normalizeBureauSpacing(this.sanitizeBylineValue(right));
-        const entries = [normalizedLeft, normalizedRight].filter(Boolean);
+    mergeBylines(bylines) {
+        const list = Array.isArray(bylines) ? bylines : [bylines];
+        const entries = list
+            .map((item) => this.normalizeBureauSpacing(this.sanitizeBylineValue(item)))
+            .filter(Boolean);
         if (!entries.length) return '';
-
-        const collapsed = this.collapseDuplicateBureaus(entries);
-        return this.sanitizeBylineValue(collapsed.join('/'));
+        const unique = [];
+        entries.forEach((entry) => {
+            if (!unique.includes(entry)) unique.push(entry);
+        });
+        return this.sanitizeBylineValue(unique.join('/'));
     }
 
     applyCreditBureauSuffix(byline, credit) {
@@ -945,20 +1103,6 @@ class Banfinator {
         return match ? match[1].toUpperCase() : '';
     }
 
-    swapSides() {
-        [this.images.left, this.images.right] = [this.images.right, this.images.left];
-        [this.bylineSources.left, this.bylineSources.right] = [this.bylineSources.right, this.bylineSources.left];
-        [this.transforms.left, this.transforms.right] = [this.transforms.right, this.transforms.left];
-        [this.bureauSuffixes.left, this.bureauSuffixes.right] = [this.bureauSuffixes.right, this.bureauSuffixes.left];
-        [this.colorProfiles.left, this.colorProfiles.right] = [this.colorProfiles.right, this.colorProfiles.left];
-
-        this.setZoom('left', this.transforms.left.scale);
-        this.setZoom('right', this.transforms.right.scale);
-        this.updateBylineField();
-        this.updateSuffixInfo();
-        this.draw();
-    }
-
     setBureauSuffix(side, byline, credit = '') {
         const bylineSuffix = this.extractBureauSuffix(byline);
         const creditSuffix = this.extractCreditBureau(credit);
@@ -968,12 +1112,16 @@ class Banfinator {
 
     updateSuffixInfo() {
         if (!this.suffixInfoBox) return;
-        const left = this.bureauSuffixes.left;
-        const right = this.bureauSuffixes.right;
-        const duplicateSuffix = left && right && left === right;
+        const active = this.getActiveSides();
+        const suffixCounts = active.reduce((acc, side) => {
+            const suffix = this.bureauSuffixes[side];
+            if (suffix) acc[suffix] = (acc[suffix] || 0) + 1;
+            return acc;
+        }, {});
 
-        if (duplicateSuffix) {
-            this.suffixInfoBox.textContent = `Båda bilderna är ${left}`;
+        const duplicate = Object.entries(suffixCounts).find(([, count]) => count > 1);
+        if (duplicate) {
+            this.suffixInfoBox.textContent = `Minst två bilder är ${duplicate[0]}`;
             this.suffixInfoBox.hidden = false;
         } else {
             this.suffixInfoBox.hidden = true;
