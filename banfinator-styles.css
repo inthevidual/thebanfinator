@@ -79,6 +79,9 @@ p { color: var(--text); }
 .canvas-frame.dragover-left #imageCanvas { box-shadow: inset 6px 0 0 rgba(122, 166, 218, 0.35); }
 .canvas-frame.dragover-right #imageCanvas { box-shadow: inset -6px 0 0 rgba(122, 166, 218, 0.35); }
 #imageCanvas { width: 100%; height: auto; display: block; border-radius: 8px; background: #0f0f0f; }
+.label-overlay { position: absolute; inset: 0; pointer-events: none; display: none; }
+.label-overlay.is-visible { display: block; }
+.label-badge { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(122, 166, 218, 0.15); border: 1px solid rgba(122, 166, 218, 0.6); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45); color: var(--accent); font-weight: 800; font-family: 'Inter', system-ui, sans-serif; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; transform: translateX(-50%); }
 
 .layout-two-only { display: block; }
 .layout-three-only { display: none; }

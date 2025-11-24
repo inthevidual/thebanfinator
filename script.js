@@ -1,6 +1,7 @@
 class Banfinator {
     constructor() {
         this.previewCanvas = document.getElementById('imageCanvas');
+        this.canvasFrame = document.querySelector('.canvas-frame');
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
@@ -38,6 +39,7 @@ class Banfinator {
         this.bureauSuffixes = { left: '', center: '', right: '' };
         this.imageLabels = { left: null, center: null, right: null };
         this.labelPool = ['A', 'B', 'C'];
+        this.overlayLabels = {};
         this.transforms = {
             left: { scale: 1, offsetX: 0, offsetY: 0 },
             center: { scale: 1, offsetX: 0, offsetY: 0 },
@@ -56,6 +58,7 @@ class Banfinator {
         this.previewCanvas.width = 3840;
         this.previewCanvas.height = 2160;
         this.profilePromise = this.loadColorProfiles();
+        this.labelOverlay = this.createLabelOverlay();
         this.bindEvents();
         this.applyLayoutMode(this.layoutMode);
         this.resetMetadataInputs();
@@ -70,6 +73,30 @@ class Banfinator {
         return typeof OffscreenCanvas !== 'undefined'
             ? new OffscreenCanvas(3840, 2160)
             : Object.assign(document.createElement('canvas'), { width: 3840, height: 2160 });
+    }
+
+    createLabelOverlay() {
+        if (!this.canvasFrame) return null;
+        const overlay = this.canvasFrame.querySelector('.label-overlay') || document.createElement('div');
+        overlay.classList.add('label-overlay');
+        if (!overlay.parentElement) {
+            this.canvasFrame.appendChild(overlay);
+        }
+
+        ['left', 'center', 'right'].forEach((side, idx) => {
+            const badge = this.createLabelBadge(this.labelPool[idx]);
+            overlay.appendChild(badge);
+            this.overlayLabels[side] = badge;
+        });
+
+        return overlay;
+    }
+
+    createLabelBadge(text) {
+        const badge = document.createElement('div');
+        badge.className = 'label-badge';
+        badge.textContent = text;
+        return badge;
     }
 
     bindEvents() {
@@ -113,6 +140,8 @@ class Banfinator {
         Object.entries(this.resetButtons).forEach(([side, btn]) => {
             btn?.addEventListener('click', () => this.resetView(side));
         });
+
+        window.addEventListener('resize', () => this.updateLabelOverlayPositions());
 
         document.querySelectorAll('.shuffle-row').forEach((row) => {
             const side = row.getAttribute('data-side');
@@ -336,6 +365,33 @@ class Banfinator {
             if (!el) return;
             el.textContent = this.imageLabels[side] || '–';
         });
+        this.updateLabelOverlayPositions();
+    }
+
+    updateLabelOverlayPositions() {
+        if (!this.labelOverlay || !this.previewCanvas || !this.canvasFrame) return;
+
+        const showLabels = this.layoutMode === 'three';
+        this.labelOverlay.classList.toggle('is-visible', showLabels);
+        if (!showLabels) return;
+
+        const { regions } = this.getLayoutRegions(this.renderCanvas.width);
+        const frameRect = this.canvasFrame.getBoundingClientRect();
+        const canvasRect = this.previewCanvas.getBoundingClientRect();
+        const scale = canvasRect.width / this.renderCanvas.width;
+        const offsetX = canvasRect.left - frameRect.left;
+        const topOffset = Math.max(6, canvasRect.top - frameRect.top - 8);
+
+        ['left', 'center', 'right'].forEach((side, idx) => {
+            const badge = this.overlayLabels[side];
+            const region = regions[side];
+            if (!badge || !region) return;
+            const label = this.imageLabels[side] || this.labelPool[idx] || '';
+            const centerX = offsetX + (region.x + region.width / 2) * scale;
+            badge.style.left = `${centerX}px`;
+            badge.style.top = `${topOffset}px`;
+            badge.textContent = label;
+        });
     }
 
     shiftImage(side, direction) {
@@ -385,6 +441,7 @@ class Banfinator {
     draw() {
         this.renderComposite();
         this.presentPreview();
+        this.updateLabelOverlayPositions();
     }
 
     renderComposite() {
@@ -415,7 +472,6 @@ class Banfinator {
         const { regions, dividers } = this.getLayoutRegions(width);
         Object.entries(regions).forEach(([side, region]) => {
             this.drawImageToRegion(ctx, this.images[side], region, height, side);
-            this.drawLabelBadge(ctx, region, this.images[side] ? this.imageLabels[side] : null);
         });
 
         ctx.fillStyle = '#ffffff';
@@ -438,29 +494,6 @@ class Banfinator {
         ctx.rect(region.x, 0, region.width, canvasHeight);
         ctx.clip();
         ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
-        ctx.restore();
-    }
-
-    drawLabelBadge(ctx, region, label) {
-        if (!label) return;
-        const radius = 16;
-        const padding = 10;
-        const centerX = region.x + region.width / 2;
-        const centerY = padding + radius;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 16px "Inter", system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, centerX, centerY);
         ctx.restore();
     }
 
