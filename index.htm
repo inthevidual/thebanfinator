@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="sv" data-theme="halloween">
 <head>
     <meta charset="UTF-8">
     <!-- Open Graph -->
@@ -24,30 +24,40 @@
     <meta http-equiv="Expires" content="0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-      <link rel="icon" type="image/svg+xml" href="banf.svg?v=3.0.3">
-      <link rel="alternate icon" href="banf.svg?v=3.0.3">
-      <link rel="stylesheet" href="banfinator-styles.css?v=3.0.3">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700;800&family=Fira+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/daisyui.css" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="icon" type="image/svg+xml" href="banf.svg?v=3.1">
+    <link rel="alternate icon" href="banf.svg?v=3.1">
+    <style type="text/tailwindcss">
+        @theme {
+            --font-sans: 'Fira Sans', system-ui, -apple-system, sans-serif;
+            --font-mono: 'Fira Mono', monospace;
+        }
+    </style>
+    <link rel="stylesheet" href="banfinator-styles.css?v=3.1">
 </head>
-<body class="bg-base text-body">
-    <div class="app-shell container py-4">
-        <header class="masthead mb-4">
-            <div class="card gradient-card border-0 shadow-lg overflow-hidden">
-                <div class="card-body d-flex flex-column flex-lg-row align-items-center gap-3">
-                    <div class="brand-mark-wrap">
-                        <img src="banf.svg?v=3.0.3" alt="The Banfinator" class="brand-mark">
+<body class="min-h-screen bg-base-100 text-base-content font-sans">
+    <div class="max-w-[1200px] mx-auto px-4 py-6">
+
+        <!-- HEADER -->
+        <header class="mb-6">
+            <div class="card card-border bg-base-200 shadow-md">
+                <div class="card-body flex flex-col lg:flex-row items-center gap-4">
+                    <div class="w-24 h-24 p-2.5 bg-base-100 rounded-2xl border border-base-300 shrink-0">
+                        <img src="banf.svg?v=3.1" alt="The Banfinator" class="brand-mark w-full h-full object-contain drop-shadow-md">
                     </div>
-                    <div class="brand-copy flex-grow-1">
-                        <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 justify-content-between w-100">
+                    <div class="flex-1 w-full">
+                        <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between w-full">
                             <div>
-                                <div class="brand-line">THE BANFINATOR</div>
-                                <div class="brand-tagline d-flex align-items-center flex-wrap gap-2">
+                                <div class="brand-title text-3xl font-extrabold tracking-wider uppercase font-mono">THE BANFINATOR</div>
+                                <div class="flex items-center flex-wrap gap-2 text-base-content/50 font-mono text-sm">
                                     <span>a passion project ❤️ from CP-Tjänst</span>
-                                    <span class="brand-version-inline">v3.0.3</span>
+                                    <span class="badge badge-ghost badge-sm font-mono">v3.1</span>
                                 </div>
                             </div>
-                            <div class="layout-toggle-stack ms-md-3" role="group" aria-label="Välj antal bilder">
+                            <div class="layout-toggle-stack" role="group" aria-label="Välj antal bilder">
                                 <button type="button" class="pill layout-pill is-active" data-layout-mode="two" aria-pressed="true">2 bilder</button>
                                 <button type="button" class="pill layout-pill is-muted" data-layout-mode="three" aria-pressed="false">3 bilder</button>
                             </div>
@@ -57,34 +67,35 @@
             </div>
         </header>
 
-        <section class="upload-grid mb-4">
-            <div class="row g-3">
-                <div class="col-md-4 flex-grow-1">
-                    <div class="drop-zone card h-100" data-side="left">
-                        <div class="card-body d-flex flex-column justify-content-center text-center">
-                            <span class="pill me-auto ms-auto">Vänster</span>
-                            <h3 class="h5 mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
-                            <p class="text-muted mb-0">Bilden placeras på vänster sida</p>
+        <!-- UPLOAD ZONES -->
+        <section class="mb-6">
+            <div class="flex flex-col md:flex-row gap-3">
+                <div class="flex-1">
+                    <div class="drop-zone card card-dash h-full" data-side="left">
+                        <div class="card-body flex flex-col justify-center text-center">
+                            <span class="badge badge-primary badge-soft mx-auto">Vänster</span>
+                            <h3 class="text-base font-semibold mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
+                            <p class="text-base-content/85 text-sm mb-0">Bilden placeras på vänster sida</p>
                         </div>
                         <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" hidden>
                     </div>
                 </div>
-                <div class="col-md-4 layout-three-only">
-                    <div class="drop-zone card h-100" data-side="center">
-                        <div class="card-body d-flex flex-column justify-content-center text-center">
-                            <span class="pill me-auto ms-auto">Mitten</span>
-                            <h3 class="h5 mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
-                            <p class="text-muted mb-0">Bilden placeras i mitten</p>
+                <div class="flex-1 layout-three-only">
+                    <div class="drop-zone card card-dash h-full" data-side="center">
+                        <div class="card-body flex flex-col justify-center text-center">
+                            <span class="badge badge-primary badge-soft mx-auto">Mitten</span>
+                            <h3 class="text-base font-semibold mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
+                            <p class="text-base-content/85 text-sm mb-0">Bilden placeras i mitten</p>
                         </div>
                         <input type="file" id="centerFileInput" accept="image/jpeg,image/jpg" hidden>
                     </div>
                 </div>
-                <div class="col-md-4 flex-grow-1">
-                    <div class="drop-zone card h-100" data-side="right">
-                        <div class="card-body d-flex flex-column justify-content-center text-center">
-                            <span class="pill me-auto ms-auto">Höger</span>
-                            <h3 class="h5 mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
-                            <p class="text-muted mb-0">Bilden placeras på höger sida</p>
+                <div class="flex-1">
+                    <div class="drop-zone card card-dash h-full" data-side="right">
+                        <div class="card-body flex flex-col justify-center text-center">
+                            <span class="badge badge-primary badge-soft mx-auto">Höger</span>
+                            <h3 class="text-base font-semibold mt-3 mb-1">Dra och släpp JPG eller klicka här för att ladda upp</h3>
+                            <p class="text-base-content/85 text-sm mb-0">Bilden placeras på höger sida</p>
                         </div>
                         <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" hidden>
                     </div>
@@ -92,65 +103,50 @@
             </div>
         </section>
 
-        <section class="split-controls card mb-4">
-            <div class="card-body d-flex flex-column align-items-center gap-3 w-100">
-                <div class="w-100">
-                    <div id="splitReadout" class="split-readout px-3 py-2 rounded text-uppercase fw-semibold text-center w-100" aria-live="polite">50% | 50%</div>
+        <!-- SPLIT CONTROLS -->
+        <section class="card card-border mb-6">
+            <div class="card-body flex flex-col items-center gap-4 w-full">
+                <div class="w-full">
+                    <div id="splitReadout" class="split-readout" aria-live="polite">50% | 50%</div>
                 </div>
-                <div class="flex-grow-1 w-100 layout-two-only">
-                    <label for="splitSlider" class="form-label text-muted mb-1">Justera horisontell fördelning</label>
-                    <input type="range" id="splitSlider" class="form-range" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
+                <div class="w-full layout-two-only">
+                    <label for="splitSlider" class="text-sm text-base-content/85 mb-1 block">Justera horisontell fördelning</label>
+                    <input type="range" id="splitSlider" class="range range-primary w-full" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
                 </div>
-                <div class="w-100 layout-two-only">
-                    <div class="d-flex justify-content-center">
-                        <button type="button" id="swapButton" class="btn btn-outline-accent btn-sm">Byt plats</button>
+                <div class="w-full layout-two-only">
+                    <div class="flex justify-center">
+                        <button type="button" id="swapButton" class="btn btn-soft btn-primary">Byt plats</button>
                     </div>
                 </div>
-                <div class="flex-grow-1 w-100 layout-three-only">
-                    <label class="form-label text-muted mb-1" for="tripleLeftSlider">Balans tre bilder</label>
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <input type="range" id="tripleLeftSlider" class="form-range" min="10" max="80" value="33" aria-label="Justera bredd för bild A">
-                        </div>
-                        <div class="col-md-6">
-                            <input type="range" id="tripleRightSlider" class="form-range" min="20" max="90" value="67" aria-label="Justera bredd för bild C">
-                        </div>
+                <div class="w-full layout-three-only">
+                    <label class="text-sm text-base-content/85 mb-1 block" for="tripleLeftSlider">Balans tre bilder</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <input type="range" id="tripleLeftSlider" class="range range-primary" min="10" max="80" value="33" aria-label="Justera bredd för bild A">
+                        <input type="range" id="tripleRightSlider" class="range range-primary" min="20" max="90" value="67" aria-label="Justera bredd för bild C">
                     </div>
-                    <div class="helper-text text-muted small mt-2">A och C styrs av reglagen. B fyller utrymmet mellan dem.</div>
+                    <p class="text-sm text-base-content/85 mt-2">A och C styrs av reglagen. B fyller utrymmet mellan dem.</p>
                 </div>
-                <div class="w-100 layout-three-only">
-                    <div class="shuffle-grid d-flex flex-column gap-2">
+                <div class="w-full layout-three-only">
+                    <div class="flex flex-col gap-2">
                         <div class="shuffle-row" data-side="left">
-                            <span class="pill pill-small" data-label-target="left">A</span>
+                            <span class="badge badge-primary badge-sm font-mono" data-label-target="left">A</span>
                             <div class="shuffle-actions">
-                                <button class="btn btn-outline-accent btn-sm" data-shift="left">
-                                    ◀
-                                </button>
-                                <button class="btn btn-outline-accent btn-sm" data-shift="right">
-                                    ▶
-                                </button>
+                                <button class="btn btn-soft btn-primary btn-sm btn-square" data-shift="left">◀</button>
+                                <button class="btn btn-soft btn-primary btn-sm btn-square" data-shift="right">▶</button>
                             </div>
                         </div>
                         <div class="shuffle-row" data-side="center">
-                            <span class="pill pill-small" data-label-target="center">B</span>
+                            <span class="badge badge-primary badge-sm font-mono" data-label-target="center">B</span>
                             <div class="shuffle-actions">
-                                <button class="btn btn-outline-accent btn-sm" data-shift="left">
-                                    ◀
-                                </button>
-                                <button class="btn btn-outline-accent btn-sm" data-shift="right">
-                                    ▶
-                                </button>
+                                <button class="btn btn-soft btn-primary btn-sm btn-square" data-shift="left">◀</button>
+                                <button class="btn btn-soft btn-primary btn-sm btn-square" data-shift="right">▶</button>
                             </div>
                         </div>
                         <div class="shuffle-row" data-side="right">
-                            <span class="pill pill-small" data-label-target="right">C</span>
+                            <span class="badge badge-primary badge-sm font-mono" data-label-target="right">C</span>
                             <div class="shuffle-actions">
-                                <button class="btn btn-outline-accent btn-sm" data-shift="left">
-                                    ◀
-                                </button>
-                                <button class="btn btn-outline-accent btn-sm" data-shift="right">
-                                    ▶
-                                </button>
+                                <button class="btn btn-soft btn-primary btn-sm btn-square" data-shift="left">◀</button>
+                                <button class="btn btn-soft btn-primary btn-sm btn-square" data-shift="right">▶</button>
                             </div>
                         </div>
                     </div>
@@ -158,52 +154,55 @@
             </div>
         </section>
 
-        <section class="tuning-grid mb-3" aria-label="Zoom och position">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <div class="tuning-card card h-100" data-side="left">
+        <!-- TUNING (ZOOM) -->
+        <section class="mb-4" aria-label="Zoom och position">
+            <div class="flex flex-col md:flex-row gap-3">
+                <div class="flex-1">
+                    <div class="card card-border h-full" data-side="left">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <span class="pill">Vänster bild</span>
-                                <button type="button" class="btn btn-outline-accent btn-sm" data-reset="left">Återställ vy</button>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="badge badge-primary badge-soft">Vänster bild</span>
+                                <button type="button" class="btn btn-soft btn-primary" data-reset="left">Återställ vy</button>
                             </div>
-                            <label for="leftZoom" class="form-label text-muted">Zoom</label>
-                            <input type="range" id="leftZoom" class="form-range" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
+                            <label for="leftZoom" class="text-sm text-base-content/85">Zoom</label>
+                            <input type="range" id="leftZoom" class="range range-primary range-sm" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4 layout-three-only">
-                    <div class="tuning-card card h-100" data-side="center">
+                <div class="flex-1 layout-three-only">
+                    <div class="card card-border h-full" data-side="center">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <span class="pill">Mitten</span>
-                                <button type="button" class="btn btn-outline-accent btn-sm" data-reset="center">Återställ vy</button>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="badge badge-primary badge-soft">Mitten</span>
+                                <button type="button" class="btn btn-soft btn-primary" data-reset="center">Återställ vy</button>
                             </div>
-                            <label for="centerZoom" class="form-label text-muted">Zoom</label>
-                            <input type="range" id="centerZoom" class="form-range" min="1" max="3" step="0.01" value="1" aria-label="Zooma mittenbild">
+                            <label for="centerZoom" class="text-sm text-base-content/85">Zoom</label>
+                            <input type="range" id="centerZoom" class="range range-primary range-sm" min="1" max="3" step="0.01" value="1" aria-label="Zooma mittenbild">
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="tuning-card card h-100" data-side="right">
+                <div class="flex-1">
+                    <div class="card card-border h-full" data-side="right">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <span class="pill">Höger bild</span>
-                                <button type="button" class="btn btn-outline-accent btn-sm" data-reset="right">Återställ vy</button>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="badge badge-primary badge-soft">Höger bild</span>
+                                <button type="button" class="btn btn-soft btn-primary" data-reset="right">Återställ vy</button>
                             </div>
-                            <label for="rightZoom" class="form-label text-muted">Zoom</label>
-                            <input type="range" id="rightZoom" class="form-range" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
+                            <label for="rightZoom" class="text-sm text-base-content/85">Zoom</label>
+                            <input type="range" id="rightZoom" class="range range-primary range-sm" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
                         </div>
                     </div>
                 </div>
             </div>
         </section>
-        <div class="d-flex justify-content-center mb-2">
-            <button id="resetLayoutBtn" class="btn btn-reset btn-sm">Rensa layout</button>
+
+        <div class="flex justify-center mb-2">
+            <button id="resetLayoutBtn" class="btn btn-soft btn-error">Rensa layout</button>
         </div>
-        <p class="footnote footnote-centered">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
+        <p class="text-center text-sm text-base-content/85 mb-4">Dra bilden i canvasen för att justera position (horisontellt och vertikalt). Scrolla för att zooma.</p>
 
-        <section class="canvas-stage card mb-4">
+        <!-- CANVAS -->
+        <section class="card card-border mb-6">
             <div class="card-body">
                 <div class="canvas-frame">
                     <canvas id="imageCanvas" width="3840" height="2160" role="img" aria-label="Sammanfogad bild"></canvas>
@@ -212,23 +211,28 @@
             </div>
         </section>
 
-        <section class="meta-row card mb-4">
-            <div class="card-body row g-3 align-items-center">
-                <div class="col-lg-9">
-                    <label for="bylineInput" class="form-label text-muted">Byline</label>
-                    <input type="text" id="bylineInput" class="form-control form-control-lg" placeholder="Byline från bilderna visas här och kan redigeras" autocomplete="off">
-                    <div id="suffixInfo" class="info-text" role="status" aria-live="polite" hidden></div>
-                </div>
-                <div class="col-lg-3 d-flex align-items-end">
-                    <button id="exportBtn" class="btn btn-accent w-100" disabled>Spara collage</button>
+        <!-- META ROW (BYLINE + EXPORT) -->
+        <section class="card card-border mb-6">
+            <div class="card-body">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
+                    <div class="lg:col-span-3">
+                        <label for="bylineInput" class="text-sm text-base-content/85 mb-1 block">Byline</label>
+                        <input type="text" id="bylineInput" class="input input-lg w-full" placeholder="Byline från bilderna visas här och kan redigeras" autocomplete="off">
+                        <div id="suffixInfo" class="info-text" role="status" aria-live="polite" hidden></div>
+                    </div>
+                    <div>
+                        <button id="exportBtn" class="btn btn-primary btn-lg w-full export-btn" disabled>Spara collage</button>
+                    </div>
                 </div>
             </div>
         </section>
 
     </div>
 
-    <footer class="site-footer text-center py-3">❤️ &amp; © CP-Tjänst/Jesper Sandström 2025</footer>
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="script.js?v=3.0.3"></script>
+    <footer class="site-footer footer footer-center py-6 border-t border-base-300 text-base-content/50 font-mono text-sm font-bold">
+        <p>❤️ &amp; © CP-Tjänst/Jesper Sandström 2025</p>
+    </footer>
+
+    <script src="script.js?v=3.1"></script>
 </body>
 </html>

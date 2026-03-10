@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Generate OG Image</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; background: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #fff; }
+        canvas { border: 1px solid #333; max-width: 90vw; }
+        button { margin-top: 20px; padding: 12px 32px; font-size: 16px; background: #f28c18; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; }
+        p { color: #888; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <canvas id="og" width="1200" height="630"></canvas>
+    <button onclick="download()">Download OG Image</button>
+    <p>1200 x 630</p>
+    <script>
+        const canvas = document.getElementById('og');
+        const ctx = canvas.getContext('2d');
+        const W = 1200, H = 630;
+        const BG = '#212121';
+        const TITLE = 'THE BANFINATOR';
+        const FONT = '700 68px "Fira Mono", monospace';
+
+        // Draw text to temp canvas, composite with CSS-quality Gaussian blur
+        function glowText(text, font, x, y, color, blur, alpha) {
+            const tmp = document.createElement('canvas');
+            tmp.width = W; tmp.height = H;
+            const tc = tmp.getContext('2d');
+            tc.textAlign = 'center';
+            tc.textBaseline = 'middle';
+            tc.font = font;
+            tc.fillStyle = color;
+            tc.fillText(text, x, y);
+            ctx.save();
+            ctx.filter = `blur(${blur}px)`;
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(tmp, 0, 0);
+            ctx.restore();
+        }
+
+        // Perfectly smooth radial glow — zero banding, GPU-interpolated gradient
+        function radialGlow(cx, cy, innerR, outerR, color, alpha) {
+            ctx.save();
+            const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
+            grad.addColorStop(0, color);
+            grad.addColorStop(0.3, color.replace(/[\d.]+\)$/, `${alpha * 0.6})`));
+            grad.addColorStop(0.6, color.replace(/[\d.]+\)$/, `${alpha * 0.25})`));
+            grad.addColorStop(1, color.replace(/[\d.]+\)$/, '0)'));
+            ctx.fillStyle = grad;
+            ctx.fillRect(cx - outerR, cy - outerR, outerR * 2, outerR * 2);
+            ctx.restore();
+        }
+
+        // Smooth elliptical glow using scale transform on a radial gradient
+        function ellipticalGlow(cx, cy, rx, ry, r, g, b, alpha) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(rx / ry, 1);
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, ry);
+            grad.addColorStop(0,    `rgba(${r},${g},${b},${alpha})`);
+            grad.addColorStop(0.15, `rgba(${r},${g},${b},${alpha * 0.7})`);
+            grad.addColorStop(0.35, `rgba(${r},${g},${b},${alpha * 0.4})`);
+            grad.addColorStop(0.6,  `rgba(${r},${g},${b},${alpha * 0.15})`);
+            grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(-ry * (rx/ry), -ry, ry * 2 * (rx/ry), ry * 2);
+            ctx.restore();
+        }
+
+        function draw(logoImg) {
+            // Background
+            ctx.fillStyle = BG;
+            ctx.fillRect(0, 0, W, H);
+
+            // ── Logo frame ──
+            const logoSize = 210;
+            const logoX = (W - logoSize) / 2;
+            const logoY = 75;
+            const pad = 26;
+            const fx = logoX - pad, fy = logoY - pad;
+            const fw = logoSize + pad * 2, fh = logoSize + pad * 2;
+            const frameCx = fx + fw / 2, frameCy = fy + fh / 2;
+
+            // Frame ambient radiance — perfectly smooth radial gradient
+            ellipticalGlow(frameCx, frameCy, fw * 0.9, fh * 0.9, 242, 140, 24, 0.18);
+
+            // Frame fill
+            ctx.save();
+            ctx.fillStyle = 'rgba(30, 30, 30, 0.94)';
+            ctx.beginPath();
+            ctx.roundRect(fx, fy, fw, fh, 28);
+            ctx.fill();
+            ctx.restore();
+
+            // Frame border
+            ctx.save();
+            ctx.strokeStyle = 'rgba(242, 140, 24, 0.3)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(fx, fy, fw, fh, 28);
+            ctx.stroke();
+            ctx.restore();
+
+            // Logo
+            if (logoImg) {
+                ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+            }
+
+            // ── Neon title ──
+            const titleY = logoY + logoSize + pad + 82;
+
+            // Ambient radiance behind text — smooth radial gradient, no layers
+            ellipticalGlow(W / 2, titleY, 420, 120, 242, 140, 24, 0.22);
+
+            // Text glow layers (the 5 that looked good)
+            glowText(TITLE, FONT, W/2, titleY, '#f28c18', 60, 0.18);
+            glowText(TITLE, FONT, W/2, titleY, '#f28c18', 35, 0.22);
+            glowText(TITLE, FONT, W/2, titleY, '#f28c18', 18, 0.30);
+            glowText(TITLE, FONT, W/2, titleY, '#fca338', 8,  0.45);
+            glowText(TITLE, FONT, W/2, titleY, '#ffc470', 3,  0.6);
+
+            // Hot white-orange core
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = FONT;
+            ctx.fillStyle = '#ffe2b8';
+            ctx.fillText(TITLE, W/2, titleY);
+            ctx.restore();
+
+            // ── Tagline ──
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '500 19px "Fira Sans", sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fillText('a passion project \u2764\uFE0F from CP-Tj\u00E4nst', W/2, titleY + 52);
+            ctx.restore();
+        }
+
+        function download() {
+            const a = document.createElement('a');
+            a.download = 'thebanfinator-some.jpg';
+            a.href = canvas.toDataURL('image/jpeg', 0.95);
+            a.click();
+        }
+
+        document.fonts.ready.then(() => {
+            const img = new Image();
+            img.onload = () => draw(img);
+            img.onerror = () => draw(null);
+            img.src = 'banf.svg';
+        });
+    </script>
+</body>
+</html>

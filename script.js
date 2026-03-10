@@ -5,7 +5,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '3.0.3';
+        this.version = '3.1';
         this.splitSlider = document.getElementById('splitSlider');
         this.tripleLeftSlider = document.getElementById('tripleLeftSlider');
         this.tripleRightSlider = document.getElementById('tripleRightSlider');
@@ -460,17 +460,38 @@ class Banfinator {
     }
 
     paintComposite(ctx, width, height) {
-        ctx.fillStyle = '#0c0e12';
+        ctx.fillStyle = '#1c1c1c';
         ctx.fillRect(0, 0, width, height);
 
         const { regions, dividers } = this.getLayoutRegions(width);
         Object.entries(regions).forEach(([side, region]) => {
-            this.drawImageToRegion(ctx, this.images[side], region, height, side);
+            if (this.images[side]) {
+                this.drawImageToRegion(ctx, this.images[side], region, height, side);
+            } else {
+                this.drawEmptyPattern(ctx, region.x, 0, region.width, height);
+            }
         });
 
         ctx.fillStyle = '#ffffff';
         dividers.forEach((x) => ctx.fillRect(x, 0, this.dividerWidth, height));
 
+    }
+
+    drawEmptyPattern(ctx, x, y, w, h) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 6;
+        const gap = 64;
+        for (let i = -h; i < w + h; i += gap) {
+            ctx.beginPath();
+            ctx.moveTo(x + i, y);
+            ctx.lineTo(x + i + h, y + h);
+            ctx.stroke();
+        }
+        ctx.restore();
     }
 
     drawImageToRegion(ctx, img, region, canvasHeight, side) {
