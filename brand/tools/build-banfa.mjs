@@ -26,9 +26,15 @@ const out = (f) => path.join(root, f);
 // are deliberate tonal shading and are left alone.
 const MERGE = { '#fcb531': '#fcb633', '#063e69': '#063b64' };
 
-// Square crop around the head, in source viewBox units. Chosen so the
-// sunglasses and hair silhouette still read at 32 px.
-const CROP = { x: 250, y: 30, w: 560, h: 560 };
+// Square crop around the head, in source viewBox units. Measured, not eyeballed:
+// rendering the figure with the halftone stripped and reading the silhouette
+// width per row puts the hair crown at y=0, the jaw at its narrowest (the chin)
+// at y~580, the neck at y~600 and the shoulders flaring from y~640. So the head
+// occupies y 0..600, and a 620-tall box clears the chin by 20px while taking in
+// the top of the collar. x is centred on the head's widest rows (226..790).
+// 620 is also right at a size cliff: at 630 one more of the collar's merged
+// orange paths falls inside the frame and the mark doubles, 57 KB to 118 KB.
+const CROP = { x: 198, y: 0, w: 620, h: 620 };
 
 const svgo = (input, output, config) => {
   fs.writeFileSync(t('svgo.config.mjs'), config);
@@ -36,13 +42,13 @@ const svgo = (input, output, config) => {
     { stdio: ['ignore', 'ignore', 'inherit'] });
 };
 
-const PASS1 = `export default {
+const pass1 = (merge) => `export default {
   multipass: true,
   plugins: [{ name: 'preset-default', params: { overrides: {
     removeViewBox: false,
     convertPathData: { floatPrecision: 1, transformPrecision: 2 },
     cleanupNumericValues: { floatPrecision: 1 },
-    mergePaths: { force: true },
+    mergePaths: ${merge ? '{ force: true }' : 'false'},
   }}}],
 };`;
 
@@ -115,15 +121,21 @@ const kb = (f) => `${(fs.statSync(f).size / 1024).toFixed(1)} KB`;
 
 // ── master ────────────────────────────────────────────────────────────────
 console.log('master…');
-svgo(src, t('p1.svg'), PASS1);
+svgo(src, t('p1.svg'), pass1(true));
 fs.writeFileSync(t('cls.svg'), classifyFills(fs.readFileSync(t('p1.svg'), 'utf8')));
 svgo(t('cls.svg'), t('master.svg'), PASS2);
 fs.writeFileSync(out('banfa.svg'), title(fs.readFileSync(t('master.svg'), 'utf8'), 'The Banfinator'));
 console.log(`  brand/banfa.svg ${kb(out('banfa.svg'))}`);
 
 // ── square mark ───────────────────────────────────────────────────────────
+// Cull against the UNMERGED geometry. mergePaths fuses the collar's floral
+// shapes into single paths spanning the whole sweater, and one such path
+// clipping the crop drags the entire pattern in with it — that alone was the
+// difference between a 30 KB mark and a 122 KB one. Merge after the cull.
 console.log('mark…');
-fs.writeFileSync(t('crop.svg'), crop(fs.readFileSync(t('master.svg'), 'utf8'), CROP));
+svgo(src, t('p1n.svg'), pass1(false));
+fs.writeFileSync(t('clsn.svg'), classifyFills(fs.readFileSync(t('p1n.svg'), 'utf8')));
+fs.writeFileSync(t('crop.svg'), crop(fs.readFileSync(t('clsn.svg'), 'utf8'), CROP));
 svgo(t('crop.svg'), t('mark.svg'), PASS2);
 fs.writeFileSync(out('banfa-mark.svg'), title(pruneStyles(fs.readFileSync(t('mark.svg'), 'utf8')), 'The Banfinator'));
 fs.copyFileSync(out('banfa-mark.svg'), out('favicon.svg'));
