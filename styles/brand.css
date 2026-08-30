@@ -264,18 +264,21 @@ h3 {
   --logoColor: currentColor;
   height: 0.9em;
   width: auto;
+  flex: none;
   fill: currentColor;
 }
 
-/* The brand lockup: wordmark, a 2px rounded rule at 20% opacity, then the
-   product name in the display serif. Every dimension is in em off one clamp,
-   so it scales as a unit. */
+/* The brand lockup: mark, wordmark, a 2px rounded rule at 20% opacity, then the
+   product name in the display serif. Every dimension is in em off one clamp, so
+   it scales as a unit — and the mark being *inside* the flex row is what puts it
+   on the wordmark's centre axis instead of the block's. */
 .lockup {
   display: flex;
   align-items: center;
   gap: 0.56em;
   font-size: clamp(17px, 4.4vw, 30px);
   color: var(--color-text-primary);
+  min-width: 0;
 }
 
 .lockup__rule {
@@ -483,7 +486,7 @@ h3 {
   padding: 12px 16px;
   display: flex;
   align-items: center;
-  gap: 12px 16px;
+  gap: 10px 16px;
   flex-wrap: wrap;
 }
 
