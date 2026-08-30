@@ -160,14 +160,7 @@ class Banfinator {
         window.matchMedia('(prefers-color-scheme: dark)')
             .addEventListener('change', () => this.draw());
 
-        document.querySelectorAll('.shuffle-row').forEach((row) => {
-            const side = row.getAttribute('data-side');
-            row.querySelectorAll('[data-shift]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    this.shiftImage(side, btn.getAttribute('data-shift'));
-                });
-            });
-        });
+        this.setupOrderStrip();
 
         this.previewCanvas.addEventListener('pointerdown', (e) => this.startDrag(e));
         this.previewCanvas.addEventListener('pointermove', (e) => this.handleDrag(e));
@@ -409,6 +402,119 @@ class Banfinator {
     }
 
     /**
+     * The order strip: one thumbnail per slot, in layout order, showing the
+     * actual image rather than a bare letter. Reordering is direct — drag a
+     * thumbnail where you want it — with arrow keys as the keyboard equivalent.
+     * The old control was a stacked row per slot with a pair of arrows each,
+     * which cost three or four full-width rows and never said what it reordered.
+     */
+    setupOrderStrip() {
+        this.orderStrip = document.querySelector('.order-strip');
+        if (!this.orderStrip) return;
+
+        this.orderChips = {};
+        this.orderThumbs = {};
+        let dragging = null;
+
+        SLOTS.forEach((side) => {
+            const chip = this.orderStrip.querySelector(`.order-chip[data-side="${side}"]`);
+            if (!chip) return;
+            this.orderChips[side] = chip;
+            this.orderThumbs[side] = chip.querySelector(`[data-thumb="${side}"]`);
+
+            chip.addEventListener('dragstart', (e) => {
+                dragging = side;
+                chip.classList.add('is-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                // Firefox will not start a drag without payload.
+                e.dataTransfer.setData('text/plain', side);
+            });
+
+            chip.addEventListener('dragend', () => {
+                dragging = null;
+                chip.classList.remove('is-dragging');
+                this.orderStrip.querySelectorAll('.order-chip').forEach((c) => c.classList.remove('is-drop-target'));
+            });
+
+            chip.addEventListener('dragover', (e) => {
+                if (!dragging || dragging === side) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                chip.classList.add('is-drop-target');
+            });
+
+            chip.addEventListener('dragleave', () => chip.classList.remove('is-drop-target'));
+
+            chip.addEventListener('drop', (e) => {
+                e.preventDefault();
+                chip.classList.remove('is-drop-target');
+                if (dragging && dragging !== side) this.moveImageTo(dragging, side);
+            });
+
+            chip.querySelector('[data-order-grip]')?.addEventListener('keydown', (e) => {
+                const dir = { ArrowLeft: 'left', ArrowRight: 'right' }[e.key];
+                if (!dir) return;
+                e.preventDefault();
+                this.shiftImage(side, dir);
+                // Follow the image to its new slot so repeated presses keep moving it.
+                const order = this.getActiveSides();
+                const target = order[(order.indexOf(side) + (dir === 'left' ? -1 : 1) + order.length) % order.length];
+                this.orderChips[target]?.querySelector('[data-order-grip]')?.focus();
+            });
+        });
+    }
+
+    /** Move the image in `from` to position `to`, sliding the rest along. */
+    moveImageTo(from, to) {
+        const order = this.getActiveSides();
+        const fromIndex = order.indexOf(from);
+        const toIndex = order.indexOf(to);
+        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+
+        const reorder = (map) => {
+            const sequence = order.map((slot) => map[slot]);
+            const [moved] = sequence.splice(fromIndex, 1);
+            sequence.splice(toIndex, 0, moved);
+            order.forEach((slot, i) => { map[slot] = sequence[i]; });
+        };
+        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => reorder(this[key]));
+
+        order.forEach((slot) => {
+            if (this.zoomInputs[slot]) this.zoomInputs[slot].value = this.transforms[slot].scale;
+        });
+        this.updateBylineField();
+        this.updateSuffixInfo();
+        this.updateLabelPills();
+        this.draw();
+    }
+
+    /** Repaint each chip's thumbnail from the image currently in that slot. */
+    updateOrderThumbs() {
+        if (!this.orderStrip) return;
+        const active = new Set(this.getActiveSides());
+
+        SLOTS.forEach((side) => {
+            const chip = this.orderChips?.[side];
+            const canvas = this.orderThumbs?.[side];
+            if (!chip || !canvas) return;
+
+            chip.hidden = !active.has(side);
+            chip.classList.toggle('is-empty', !this.images[side]);
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const img = this.images[side];
+            if (!img) return;
+
+            // Cover-fit, matching how the slot itself crops.
+            const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+            ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+        });
+    }
+
+    /**
      * A slot's letter is its position in the *current* layout, not its index in
      * SLOTS — otherwise two-image mode labels its pair A and C, because `right`
      * is the third slot globally.
@@ -423,6 +529,7 @@ class Banfinator {
             const letter = this.labelFor(side) || '–';
             els.forEach((el) => { el.textContent = letter; });
         });
+        this.updateOrderThumbs();
         this.updateLabelOverlayPositions();
     }
 
@@ -459,35 +566,14 @@ class Banfinator {
         });
     }
 
+    /** Nudge one slot's image one position, wrapping around the strip. */
     shiftImage(side, direction) {
-        if (this.getActiveSides().length < 3) return;
         const order = this.getActiveSides();
-        const currentIndex = order.indexOf(side);
-        if (currentIndex === -1) return;
-        const offset = direction === 'left' ? -1 : 1;
-        const targetIndex = (currentIndex + offset + order.length) % order.length;
-        if (targetIndex === currentIndex) return;
-
-        const reorderMap = (map) => {
-            const sequence = order.map((entry) => map[entry]);
-            const [moved] = sequence.splice(currentIndex, 1);
-            sequence.splice(targetIndex, 0, moved);
-            order.forEach((entry, idx) => {
-                map[entry] = sequence[idx];
-            });
-        };
-
-        ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => reorderMap(this[key]));
-
-        this.getActiveSides().forEach((entry) => {
-            if (this.zoomInputs[entry]) {
-                this.zoomInputs[entry].value = this.transforms[entry].scale;
-            }
-        });
-        this.updateBylineField();
-        this.updateSuffixInfo();
-        this.updateLabelPills();
-        this.draw();
+        if (order.length < 2) return;
+        const from = order.indexOf(side);
+        if (from === -1) return;
+        const to = (from + (direction === 'left' ? -1 : 1) + order.length) % order.length;
+        this.moveImageTo(side, order[to]);
     }
 
     swapTwoImages() {

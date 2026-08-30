@@ -8,9 +8,9 @@ hand-edit the outputs.
 |---|---|---|
 | `banfa-source.svg` | 390 KB / 149 KB | Illustrator export. Master artwork, not for the web. |
 | `banfa.svg` | 263 KB / 100 KB | Full portrait. Hero / large display only. |
-| `banfa-mark.svg` | 47 KB / 18 KB | Square head crop. Header, small UI. |
-| `favicon.svg` | 47 KB / 18 KB | Copy of the mark. |
-| `favicon-{16,32,48}.png`, `apple-touch-icon.png` | — | Raster fallbacks. |
+| `banfa-mark.svg` | 182 KB | Square crop. Vector source for the rasters — **the page does not load it**. |
+| `banfa-mark.webp` | 17 KB | What the header shows. 160px, covers 3× DPR at 45px. |
+| `favicon-{16,32,48}.png`, `apple-touch-icon.png` | — | Icons. |
 | `wordmark.svg` | 9 KB | *Svenska CP-Tjänst* wordmark. Inlined in the markup, never `<img>` — see below. |
 | `og.png` | 1200×630 | Share image. Built by `node brand/tools/build-og.mjs`. |
 
@@ -49,11 +49,19 @@ was not one. A content hash changes exactly when the file changes.
    alone still ships every path of the body. Dropping the 727 off-canvas
    elements is what takes the mark from 263 KB to 47 KB.
 
+## Why the mark ships as raster
+
+The mark is a traced portrait and its collar carries thousands of path nodes —
+the floral motifs are cut as negative space in the orange paths, so every row of
+shirt in frame is expensive. The vector is 69 KB gzipped. A 160px webp covering
+3× DPR at the header's 45px is 17 KB, and at 16–48px a favicon gains nothing
+from being vector. So `banfa-mark.svg` stays as the editable source and the page
+loads `banfa-mark.webp` and the PNG icons.
+
 ## Why the portrait is not the favicon
 
 At 32 px the full portrait is mush — the head is about eight pixels tall. The
-head crop reads: the sunglasses and hair silhouette survive. That is what
-`favicon.svg` is.
+head crop reads: the sunglasses and hair silhouette survive.
 
 This departs from brand book §3.4, which assigns the favicon to the square
 `cp-mark.svg` ("CP" letterform). Decided the other way here: Banfa is the

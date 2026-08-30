@@ -5,8 +5,8 @@
 
    The class names here are a contract with script.js. Do not rename without
    changing it: .drop-zone, .dragover, .canvas-frame, .label-overlay,
-   .is-visible, .label-badge, .shuffle-row, .is-active, .is-muted, and
-   body.layout-{two,three,four,quad}.
+   .is-visible, .label-badge, .order-chip, .is-dragging, .is-drop-target,
+   .is-empty, .is-active, .is-muted, and body.layout-{two,three,four,quad}.
    ========================================================================== */
 
 /* ── Layout mode visibility ───────────────────────────────────────────────────
@@ -194,25 +194,81 @@
   flex-wrap: wrap;
 }
 
-/* ── Shuffle rows (three-image ordering) ──────────────────────────────────── */
+/* ── Order strip ──────────────────────────────────────────────────────────────
+   One row of thumbnails in layout order. Showing the actual image is what makes
+   the control legible — the previous version was a stack of full-width rows
+   carrying only a letter and two arrows, which said nothing about what moved
+   where and cost three or four rows of height.
+   ------------------------------------------------------------------------- */
 
-.shuffle-row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-md);
-  background: var(--color-background-secondary);
+.order-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
 }
 
-.shuffle-row + .shuffle-row { margin-top: 8px; }
+.order-chip {
+  border-radius: var(--radius-md);
+}
 
-.shuffle-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+.order-chip.is-dragging { opacity: 0.4; }
+
+/* The gap the dragged chip would land in. */
+.order-chip.is-drop-target .order-chip__grip {
+  border-color: var(--color-action);
+  box-shadow: 0 0 0 2px var(--color-focus);
+}
+
+.order-chip__grip {
+  position: relative;
+  display: block;
+  padding: 0;
+  width: 112px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-background-tertiary);
+  overflow: hidden;
+  cursor: grab;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.order-chip__grip:hover { border-color: var(--color-text-muted); }
+.order-chip__grip:active { cursor: grabbing; }
+
+.order-chip__thumb {
+  display: block;
+  width: 112px;
+  height: 63px;
+}
+
+/* An empty slot still holds its place, so the strip reads as positions rather
+   than as a list of the images that happen to be loaded. */
+.order-chip.is-empty .order-chip__thumb {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    var(--color-border-primary) 6px 7px
+  );
+}
+
+.order-chip__letter {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-action);
+  color: var(--color-action-text);
+  font-family: var(--font-head);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
 }
 
 /* ── Tuning cards ─────────────────────────────────────────────────────────── */

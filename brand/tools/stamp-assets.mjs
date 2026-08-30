@@ -26,7 +26,7 @@ const stamped = [];
 let missing = 0;
 
 // Matches href/src="some/local/path.ext?v=token"
-html = html.replace(/(href|src)="([^":]+?\.(?:css|js|svg|png))\?v=[^"]*"/g, (all, attr, rel) => {
+html = html.replace(/(href|src)="([^":]+?\.(?:css|js|svg|png|webp|jpg))\?v=[^"]*"/g, (all, attr, rel) => {
   const file = path.join(root, rel);
   if (!fs.existsSync(file)) {
     console.warn(`  ! ${rel} does not exist — left as is`);

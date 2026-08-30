@@ -5,11 +5,17 @@
 //
 // Inputs : brand/banfa-source.svg   (Adobe Illustrator export, do not edit by hand)
 // Outputs: brand/banfa.svg          full portrait, optimised master
-//          brand/banfa-mark.svg     square head crop, for small UI + favicon
-//          brand/favicon.svg        copy of the mark
+//          brand/banfa-mark.svg     square crop — vector source for the rasters
+//                                   below; the page does NOT load it
+//          brand/banfa-mark.webp    what the header actually shows
 //          brand/favicon-{16,32,48}.png, brand/apple-touch-icon.png
 //
-// Requires: npx (svgo), inkscape.
+// The mark is served as raster, not SVG. It is a traced portrait whose collar
+// carries thousands of path nodes, so the vector is 69 KB gzipped while a 160px
+// webp covering 3x DPR at the header's 45px is 17 KB — and at 16-48px a favicon
+// gains nothing from being vector.
+//
+// Requires: npx (svgo), inkscape, cwebp.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,16 +32,20 @@ const out = (f) => path.join(root, f);
 // are deliberate tonal shading and are left alone.
 const MERGE = { '#fcb531': '#fcb633', '#063e69': '#063b64' };
 
-// Square crop, in source viewBox units. Measured, not eyeballed: rendering the
-// figure with the halftone stripped and reading the silhouette width per row
-// puts the hair crown at y=0, the chin at y~600 and the shoulders flaring from
-// y~640. A 760-tall box therefore clears the chin and takes in the whole
-// turtleneck, which is what stops the mark reading as a tight head crop.
+// Square crop, in source viewBox units, sized so the halftone halo sits wholly
+// inside it with clear margin — the mark should read as a complete object, not
+// a window onto a larger one.
 //
-// The collar is what costs: its floral motifs are cut as negative space in the
-// orange paths, so each row of it that enters the frame is expensive. 620 was
-// 57 KB, 760 is 150 KB (55 KB gzipped). That is the price of showing the shirt.
-const CROP = { x: 128, y: 0, w: 760, h: 760 };
+// Measured from the artwork: the halo spans x 126..930 and its arch apex sits at
+// y=0, hard against the top of the source viewBox. So the crop starts at
+// negative y to put transparent air above the apex; without that the halo can
+// only ever be flush with the edge. 880 wide centres the halo (centre x 528)
+// with ~36 units either side.
+//
+// The figure's shoulders still leave through the bottom edge, which is correct
+// for a bust, and the collar is what makes the file big: its floral motifs are
+// cut as negative space in the orange paths.
+const CROP = { x: 90, y: -45, w: 880, h: 880 };
 
 const svgo = (input, output, config) => {
   fs.writeFileSync(t('svgo.config.mjs'), config);
@@ -139,15 +149,27 @@ fs.writeFileSync(t('clsn.svg'), classifyFills(fs.readFileSync(t('p1n.svg'), 'utf
 fs.writeFileSync(t('crop.svg'), crop(fs.readFileSync(t('clsn.svg'), 'utf8'), CROP));
 svgo(t('crop.svg'), t('mark.svg'), PASS2);
 fs.writeFileSync(out('banfa-mark.svg'), title(pruneStyles(fs.readFileSync(t('mark.svg'), 'utf8')), 'The Banfinator'));
-fs.copyFileSync(out('banfa-mark.svg'), out('favicon.svg'));
-console.log(`  brand/banfa-mark.svg ${kb(out('banfa-mark.svg'))}`);
+console.log(`  brand/banfa-mark.svg ${kb(out('banfa-mark.svg'))} (source, not served)`);
 
 // ── raster icons ──────────────────────────────────────────────────────────
 console.log('icons…');
-for (const [size, name] of [[16, 'favicon-16.png'], [32, 'favicon-32.png'], [48, 'favicon-48.png'], [180, 'apple-touch-icon.png']]) {
+const png = (size, name) => {
   execFileSync('inkscape', ['--export-type=png', `--export-filename=${out(name)}`,
     '-w', String(size), '-h', String(size), out('banfa-mark.svg')], { stdio: 'ignore' });
+};
+
+for (const [size, name] of [[16, 'favicon-16.png'], [32, 'favicon-32.png'], [48, 'favicon-48.png'], [180, 'apple-touch-icon.png']]) {
+  png(size, name);
   console.log(`  brand/${name} ${kb(out(name))}`);
 }
+
+// 160px covers the header's 45px mark at 3x DPR.
+png(160, 'banfa-mark-160.png');
+execFileSync('cwebp', ['-q', '88', '-m', '6', out('banfa-mark-160.png'), '-o', out('banfa-mark.webp')],
+  { stdio: 'ignore' });
+fs.rmSync(out('banfa-mark-160.png'), { force: true });
+console.log(`  brand/banfa-mark.webp ${kb(out('banfa-mark.webp'))}`);
+
+fs.rmSync(out('favicon.svg'), { force: true });
 
 fs.rmSync(tmp, { recursive: true, force: true });
