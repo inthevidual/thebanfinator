@@ -14,6 +14,21 @@ hand-edit the outputs.
 | `wordmark.svg` | 9 KB | *Svenska CP-Tjänst* wordmark. Inlined in the markup, never `<img>` — see below. |
 | `og.png` | 1200×630 | Share image. Built by `node brand/tools/build-og.mjs`. |
 
+## Cache busting
+
+`index.htm` references local assets as `path?v=<8-char content hash>`. Run
+
+```
+node brand/tools/stamp-assets.mjs
+```
+
+after touching anything under `styles/`, `script.js` or `brand/`.
+
+The token used to be the marketing version, `?v=4.1`. It stayed put across three
+commits that changed the CSS, so browsers kept serving a stale stylesheet and the
+layout selector rendered with the old rules — the bug looked like a CSS bug and
+was not one. A content hash changes exactly when the file changes.
+
 ## What the build does
 
 1. **svgo at 0.1-unit precision.** The Illustrator export carries ~6 decimals

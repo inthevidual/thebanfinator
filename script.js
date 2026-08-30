@@ -36,7 +36,9 @@ class Banfinator {
         this.zoomInputs = perSlot();
         this.resetButtons = perSlot();
         SLOTS.forEach((side) => {
-            this.labelTargets[side] = document.querySelector(`[data-label-target="${side}"]`);
+            // Several elements carry a slot's letter — the drop zone, the tune
+            // card and the reorder row — so collect all of them, not the first.
+            this.labelTargets[side] = [...document.querySelectorAll(`[data-label-target="${side}"]`)];
             this.zoomInputs[side] = document.getElementById(`${side}Zoom`);
             this.resetButtons[side] = document.querySelector(`[data-reset="${side}"]`);
         });
@@ -44,7 +46,6 @@ class Banfinator {
         this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
         this.bureauSuffixes = perSlot('');
         this.labelPool = ['A', 'B', 'C', 'D'];
-        this.imageLabels = Object.fromEntries(SLOTS.map((s, i) => [s, this.labelPool[i]]));
         this.overlayLabels = {};
         this.transforms = perSlot(() => ({ scale: 1, offsetX: 0, offsetY: 0 }));
         this.bylineSources = perSlot('');
@@ -205,7 +206,6 @@ class Banfinator {
             this.bylineSources[side] = '';
             this.bureauSuffixes[side] = '';
             this.colorProfiles[side] = '';
-            this.assignLabelToSide(side);
             const dropZone = document.querySelector(`.drop-zone[data-side="${side}"]`);
             dropZone?.classList.remove('loaded');
             const input = this[`${side}Input`];
@@ -355,6 +355,8 @@ class Banfinator {
         this.splitReadout?.setAttribute('aria-live', 'polite');
         if (mode === 'two' && this.splitSlider) this.splitSlider.value = this.ratio * 100;
         this.syncCutInputs();
+        // Letters are positional, so a mode change re-letters every slot.
+        this.updateLabelPills();
         this.updateBylineField();
         this.updateSuffixInfo();
     }
@@ -406,15 +408,20 @@ class Banfinator {
         this.exportBtn.disabled = !ready;
     }
 
-    assignLabelToSide(side) {
-        const defaultLabel = this.labelPool[SLOTS.indexOf(side)] || this.labelPool[0];
-        this.imageLabels[side] = defaultLabel;
+    /**
+     * A slot's letter is its position in the *current* layout, not its index in
+     * SLOTS — otherwise two-image mode labels its pair A and C, because `right`
+     * is the third slot globally.
+     */
+    labelFor(side) {
+        const index = this.getActiveSides().indexOf(side);
+        return index === -1 ? '' : this.labelPool[index];
     }
 
     updateLabelPills() {
-        Object.entries(this.labelTargets).forEach(([side, el]) => {
-            if (!el) return;
-            el.textContent = this.imageLabels[side] || '–';
+        Object.entries(this.labelTargets).forEach(([side, els]) => {
+            const letter = this.labelFor(side) || '–';
+            els.forEach((el) => { el.textContent = letter; });
         });
         this.updateLabelOverlayPositions();
     }
@@ -441,7 +448,7 @@ class Banfinator {
             badge.hidden = !region;
             if (!region) return;
 
-            badge.textContent = this.imageLabels[side] || this.labelPool[idx] || '';
+            badge.textContent = this.labelFor(side);
             badge.style.left = `${offsetX + (region.x + region.width / 2) * scale}px`;
             // Sit inside the region's top edge. In a single row that reads as
             // sitting above the canvas, as before; in a 2x2 the bottom pair need
@@ -892,7 +899,6 @@ class Banfinator {
         const bitmap = await this.decodeBitmap(blob);
         this.images[side]?.close?.();
         this.images[side] = bitmap;
-        this.assignLabelToSide(side);
         this.resetView(side, { silent: true });
         if (zone) {
             zone.classList.add('loaded');

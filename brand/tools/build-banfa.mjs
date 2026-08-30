@@ -26,15 +26,16 @@ const out = (f) => path.join(root, f);
 // are deliberate tonal shading and are left alone.
 const MERGE = { '#fcb531': '#fcb633', '#063e69': '#063b64' };
 
-// Square crop around the head, in source viewBox units. Measured, not eyeballed:
-// rendering the figure with the halftone stripped and reading the silhouette
-// width per row puts the hair crown at y=0, the jaw at its narrowest (the chin)
-// at y~580, the neck at y~600 and the shoulders flaring from y~640. So the head
-// occupies y 0..600, and a 620-tall box clears the chin by 20px while taking in
-// the top of the collar. x is centred on the head's widest rows (226..790).
-// 620 is also right at a size cliff: at 630 one more of the collar's merged
-// orange paths falls inside the frame and the mark doubles, 57 KB to 118 KB.
-const CROP = { x: 198, y: 0, w: 620, h: 620 };
+// Square crop, in source viewBox units. Measured, not eyeballed: rendering the
+// figure with the halftone stripped and reading the silhouette width per row
+// puts the hair crown at y=0, the chin at y~600 and the shoulders flaring from
+// y~640. A 760-tall box therefore clears the chin and takes in the whole
+// turtleneck, which is what stops the mark reading as a tight head crop.
+//
+// The collar is what costs: its floral motifs are cut as negative space in the
+// orange paths, so each row of it that enters the frame is expensive. 620 was
+// 57 KB, 760 is 150 KB (55 KB gzipped). That is the price of showing the shirt.
+const CROP = { x: 128, y: 0, w: 760, h: 760 };
 
 const svgo = (input, output, config) => {
   fs.writeFileSync(t('svgo.config.mjs'), config);
