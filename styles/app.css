@@ -1,0 +1,362 @@
+/* =============================================================================
+   The Banfinator — app-specific styling
+   Depends on styles/brand.css. Only semantic tokens (--color-*) below the
+   ramps layer — never a raw ramp, per brand-book §2.1.
+
+   The class names here are a contract with script.js. Do not rename without
+   changing it: .drop-zone, .dragover, .dragover-left/-right, .canvas-frame,
+   .label-overlay, .is-visible, .label-badge, .shuffle-row, .is-active,
+   .is-muted, and body.layout-three.
+   ========================================================================== */
+
+/* ── Layout mode toggles (JS-driven) ──────────────────────────────────────────
+   Written as :not() so the *visible* state carries no display declaration at
+   all. Setting `display: block` on the shown element would override the
+   element's own display — .drop-zone is a flex column, and a block override
+   silently un-centres it.
+   ------------------------------------------------------------------------- */
+
+body:not(.layout-three) .layout-three-only { display: none; }
+body.layout-three .layout-two-only { display: none; }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--radius-md);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Below ~640px the lockup alone fills the row, so the controls take a line of
+   their own rather than pushing 3px of the page off-screen. */
+@media (max-width: 639px) {
+  .header-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Segmented control for 2 / 3 images. A single bordered track with the active
+   segment filled — flat, per §4.3, no shadow doing the hierarchy. */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-background-tertiary);
+}
+
+.segmented__option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.segmented__option:hover { color: var(--color-text-primary); }
+
+.segmented__option.is-active {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+/* .is-muted is set by script.js on the inactive segment; the segmented control
+   already reads as unselected, so it needs no extra dimming. */
+.segmented__option.is-muted { opacity: 1; }
+
+/* ── Drop zones ───────────────────────────────────────────────────────────── */
+
+.zone-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .zone-grid { grid-template-columns: repeat(2, 1fr); }
+  body.layout-three .zone-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 150px;
+  padding: 20px;
+  text-align: center;
+  border: 1px dashed var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.drop-zone:hover {
+  border-color: var(--color-action);
+  background: var(--color-background-tertiary);
+}
+
+/* Drag feedback. A ring rather than a glow — depth is not a design element
+   here (§4.3), so the state reads through colour and a hard 2px ring. */
+.drop-zone.dragover {
+  border-style: solid;
+  border-color: var(--color-action);
+  background: var(--color-background-tertiary);
+  box-shadow: 0 0 0 2px var(--color-focus);
+}
+
+.drop-zone__title {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--color-text-primary);
+}
+
+.drop-zone__hint {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+/* ── Split readout ────────────────────────────────────────────────────────── */
+
+.split-readout {
+  font-family: var(--font-head);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--color-text-primary);
+  padding: 4px 0 2px;
+}
+
+/* ── Control rows ─────────────────────────────────────────────────────────── */
+
+.control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-row + .control-row {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border-secondary);
+  padding-top: 14px; /* §4.2 divider above a field group */
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .control-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.center-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Shuffle rows (three-image ordering) ──────────────────────────────────── */
+
+.shuffle-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-background-secondary);
+}
+
+.shuffle-row + .shuffle-row { margin-top: 8px; }
+
+.shuffle-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── Tuning cards ─────────────────────────────────────────────────────────── */
+
+.tune-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .tune-grid { grid-template-columns: repeat(2, 1fr); }
+  body.layout-three .tune-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.tune-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ── Canvas ───────────────────────────────────────────────────────────────── */
+
+.canvas-frame {
+  position: relative;
+  border-radius: var(--radius-md);
+  transition: box-shadow 0.15s ease;
+}
+
+.canvas-frame.dragover { box-shadow: 0 0 0 2px var(--color-focus); }
+
+.canvas-frame.dragover-left #imageCanvas { box-shadow: inset 6px 0 0 var(--color-action); }
+.canvas-frame.dragover-right #imageCanvas { box-shadow: inset -6px 0 0 var(--color-action); }
+
+#imageCanvas {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-background-tertiary);
+  cursor: grab;
+}
+
+#imageCanvas:active { cursor: grabbing; }
+
+/* ── Label overlay (A / B / C markers over the canvas) ────────────────────── */
+
+.label-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+}
+
+.label-overlay.is-visible { display: block; }
+
+.label-badge {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(-50%);
+  background: var(--color-action);
+  color: var(--color-action-text);
+  border: 1px solid var(--color-surface-raised);
+  font-family: var(--font-head);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── Export row ───────────────────────────────────────────────────────────── */
+
+.export-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: end;
+}
+
+@media (min-width: 1024px) {
+  .export-grid { grid-template-columns: 3fr 1fr; }
+}
+
+/* ── Byline suffix notice ─────────────────────────────────────────────────────
+   §2.4: a status colour never appears alone. The marker is a ::before rather
+   than a child element because script.js writes this box with textContent,
+   which would delete any markup inside it.
+   ------------------------------------------------------------------------- */
+
+.info-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-warning);
+}
+
+.info-text::before {
+  content: '!';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-family: var(--font-head);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+.info-text[hidden] { display: none; }
+
+/* ── Canvas caption + trailing actions ────────────────────────────────────── */
+
+.canvas-note {
+  margin: 14px auto 0;
+  text-align: center;
+}
+
+.canvas-actions { margin-top: 12px; }
+
+.field-input { margin-top: 6px; }
+
+.site-footer p { margin: 0; }
+
+/* A filled slot must not look like an empty one. script.js sets .loaded on the
+   zone; before v4 nothing styled it, so the two states were indistinguishable.
+   §2.4: the status colour carries a word, never colour alone. */
+
+.drop-zone__loaded { display: none; }
+
+.drop-zone.loaded {
+  border-style: solid;
+  border-color: var(--color-good);
+  background: var(--color-background-tertiary);
+}
+
+.drop-zone.loaded .drop-zone__hint { display: none; }
+.drop-zone.loaded .drop-zone__loaded { display: inline-flex; }

@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   SvD:s egna typsnitt, självhostade från public/fonts.
+   ------------------------------------------------------------------ */
+@font-face { font-family: 'SvD Ester Blenda'; src: url('/fonts/SvDEsterBlenda-Regular_4d499fd4.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'SvD Ester Blenda'; src: url('/fonts/SvDEsterBlenda-Medium_ce71f11f.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'SvD Ester Blenda'; src: url('/fonts/SvDEsterBlenda-Bold_2775ffc4.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Sueca Hd'; src: url('/fonts/sueca-web-hd-light_30d82c42.woff2') format('woff2'); font-weight: 300; font-display: swap; }
+@font-face { font-family: 'Sueca Hd'; src: url('/fonts/sueca-web-hd-semibold_c8feba36.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Sueca Hd'; src: url('/fonts/sueca-web-hd-bold_af5dba33.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Sueca Tx'; src: url('/fonts/sueca-text-regular_593d3599.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Sueca Tx'; src: url('/fonts/sueca-text-regular-italic_51117951.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Sueca Tx'; src: url('/fonts/sueca-text-extrabold_ae7fcb27.woff2') format('woff2'); font-weight: 800; font-display: swap; }
+
+@layer base {
+  /* ----------------------------------------------------------------
+     SvD:s färgskalor, hämtade från svd.se. Råa skalor först, sedan
+     semantiska roller — så att ljust och mörkt byts på ett ställe.
+     ---------------------------------------------------------------- */
+  :root {
+    --blue-100:#ECF3FA; --blue-200:#42C0F0; --blue-300:#0098DA; --blue-400:#0D4C80;
+    --blue-500:#144166; --blue-600:#00355F; --blue-700:#0B2337; --blue-800:#031420;
+    --gray-100:#F7F6F5; --gray-200:#EBEBEB; --gray-300:#D9D9D9; --gray-400:#C3C2C1;
+    --gray-500:#918F8D; --gray-600:#605E5D; --gray-700:#2E2E2E; --gray-800:#1D1D1B;
+    --brown-100:#FCF4EC; --brown-200:#F4EBE2; --brown-300:#EEDECE; --brown-400:#E4CCB3;
+    --brown-500:#8F6D62; --brown-600:#5C403C; --brown-700:#2A1E22; --brown-800:#0C090A;
+    --green-300:#52C18C; --green-400:#27B16F; --green-500:#1F8E59; --green-600:#176A43;
+    --orange-300:#F57238; --orange-500:#F25538; --orange-600:#923C0D;
+    --red-400:#EE747B; --red-500:#EA515A; --red-600:#BB4148; --red-700:#8C3136;
+    --yellow-400:#FFE400; --yellow-500:#CCB600; --yellow-600:#998900;
+    --purple-300:#AE98E8; --purple-400:#7557D8; --purple-500:#6148B5;
+    --indigo-300:#97A2E8; --indigo-400:#556CD8; --indigo-500:#465AB6;
+    --pink-400:#E83183; --pink-500:#B7236D;
+    --cyan-400:#4B9ACC;
+
+    /* semantiska roller — ljust läge */
+    color-scheme: light;
+    --color-background-primary:   #FFFFFF;
+    --color-background-secondary: var(--brown-100);
+    --color-background-tertiary:  var(--brown-200);
+    --color-surface-raised:       #FFFFFF;
+    --color-text-primary:         var(--gray-800);
+    --color-text-secondary:       var(--gray-600);
+    --color-text-muted:           var(--gray-500);
+    --color-border-primary:       #E5E2E1;
+    --color-border-secondary:     #F2EFEE;
+    --color-action:               var(--blue-400);
+    --color-action-hover:         var(--blue-500);
+    --color-action-text:          #FFFFFF;
+    --color-focus:                var(--blue-300);
+    --color-good:                 var(--green-500);
+    --color-warning:              var(--yellow-600);
+    --color-critical:             var(--red-600);
+
+    /* diagramytor och serier — validerade i båda lägena */
+    --chart-surface: #FFFFFF;
+    --chart-grid:    #EBEBEB;
+    --chart-axis:    var(--gray-600);
+    --series-1: #0098DA;  --series-2: #EA515A;  --series-3: #6148B5;  --series-4: #923C0D;
+    --series-5: #465AB6;  --series-6: #998900;  --series-7: #E83183;  --series-other: #918F8D;
+    --cat-avsnitt: #0098DA; --cat-inlasningar: #923C0D; --cat-kringarbete: #6148B5;
+    /* Lyssnarräckvidd. Egen nyans därför att blått redan betyder avsnitt —
+       i graferna där båda syns måste de gå att skilja åt. */
+    --reach: #6148B5;
+    /* Samma nyanser som serierna, men steg som klarar 4,5:1 — för färgad text.
+       Diagramfärgerna är validerade för 3:1 (grafiska objekt) och räcker inte
+       till siffror satta i färg. */
+    --text-1:#0D4C80; --text-2:#BB4148; --text-3:#7557D8; --text-4:#923C0D;
+    --text-5:#556CD8; --text-6:#665B00; --text-7:#B7236D; --text-other:#605E5D;
+    /* enfärgad skala för värmekartan (blå, ljus → mörk) */
+    --heat-0:#F2EFEE; --heat-1:#CDE2FB; --heat-2:#9EC5F4; --heat-3:#5598E7; --heat-4:#2A78D6; --heat-5:#184F95;
+  }
+
+  /* mörkt läge: OS-inställningen, men en uttrycklig ljus-stämpel vinner */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+      --color-background-primary:   var(--blue-800);
+      --color-background-secondary: var(--blue-700);
+      --color-background-tertiary:  #12314B;
+      --color-surface-raised:       var(--blue-700);
+      --color-text-primary:         #FFFFFF;
+      --color-text-secondary:       #B9C7D4;
+      --color-text-muted:           #8A9BAB;
+      --color-border-primary:       rgba(255,255,255,0.16);
+      --color-border-secondary:     rgba(255,255,255,0.09);
+      --color-action:               var(--blue-300);
+      --color-action-hover:         var(--blue-200);
+      --color-action-text:          #031420;
+      --color-focus:                var(--blue-200);
+      --color-good:                 var(--green-400);
+      --color-warning:              var(--yellow-500);
+      --color-critical:             var(--red-500);
+      --chart-surface: #0B2337;
+      --chart-grid:    rgba(255,255,255,0.12);
+      --chart-axis:    #B9C7D4;
+      --series-1: #0098DA;  --series-2: #EA515A;  --series-3: #7557D8;  --series-4: #F25538;
+      --series-5: #556CD8;  --series-6: #998900;  --series-7: #E83183;  --series-other: #8A9BAB;
+      --cat-avsnitt: #0098DA; --cat-inlasningar: #F25538; --cat-kringarbete: #7557D8;
+      --reach: #7557D8;
+      --text-1:#0098DA; --text-2:#EE747B; --text-3:#AE98E8; --text-4:#F25538;
+      --text-5:#97A2E8; --text-6:#998900; --text-7:#FF74C7; --text-other:#B9C7D4;
+      --heat-0:rgba(255,255,255,0.06); --heat-1:#104281; --heat-2:#184F95; --heat-3:#256ABF; --heat-4:#3987E5; --heat-5:#86B6EF;
+    }
+  }
+
+  /* uttrycklig växling vinner i båda riktningarna */
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --color-background-primary:   var(--blue-800);
+    --color-background-secondary: var(--blue-700);
+    --color-background-tertiary:  #12314B;
+    --color-surface-raised:       var(--blue-700);
+    --color-text-primary:         #FFFFFF;
+    --color-text-secondary:       #B9C7D4;
+    --color-text-muted:           #8A9BAB;
+    --color-border-primary:       rgba(255,255,255,0.16);
+    --color-border-secondary:     rgba(255,255,255,0.09);
+    --color-action:               var(--blue-300);
+    --color-action-hover:         var(--blue-200);
+    --color-action-text:          #031420;
+    --color-focus:                var(--blue-200);
+    --color-good:                 var(--green-400);
+    --color-warning:              var(--yellow-500);
+    --color-critical:             var(--red-500);
+    --chart-surface: #0B2337;
+    --chart-grid:    rgba(255,255,255,0.12);
+    --chart-axis:    #B9C7D4;
+    --series-1: #0098DA;  --series-2: #EA515A;  --series-3: #7557D8;  --series-4: #F25538;
+    --series-5: #556CD8;  --series-6: #998900;  --series-7: #E83183;  --series-other: #8A9BAB;
+    --cat-avsnitt: #0098DA; --cat-inlasningar: #F25538; --cat-kringarbete: #7557D8;
+    --reach: #7557D8;
+    --text-1:#0098DA; --text-2:#EE747B; --text-3:#AE98E8; --text-4:#F25538;
+    --text-5:#97A2E8; --text-6:#998900; --text-7:#FF74C7; --text-other:#B9C7D4;
+    --heat-0:rgba(255,255,255,0.06); --heat-1:#104281; --heat-2:#184F95; --heat-3:#256ABF; --heat-4:#3987E5; --heat-5:#86B6EF;
+  }
+
+  * { border-color: var(--color-border-primary); }
+
+  body {
+    background: var(--color-background-secondary);
+    color: var(--color-text-primary);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-feature-settings: 'tnum' 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Siffror linjeras i tabeller och nyckeltal så kolumnerna står still. */
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection { background: var(--blue-200); color: var(--blue-800); }
+}
+
+@layer components {
+  /* Bakgrundsplattan bakom en programledares urklippta porträtt. */
+  .avatar-plate { background: linear-gradient(160deg, var(--color-background-tertiary), var(--color-background-secondary)); }
+}
+
+/* Recharts ritar egna svg-element; håll dem i linje med tokenerna. */
+.recharts-cartesian-axis-tick text { fill: var(--chart-axis); font-size: 11px; }
+.recharts-cartesian-grid line { stroke: var(--chart-grid); }
+.recharts-surface { overflow: visible; }
