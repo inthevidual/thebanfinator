@@ -1,3 +1,20 @@
+// The four image slots. `left`, `center` and `right` are historic names kept so
+// the DOM ids, data-side attributes and saved state stay put — treat all four as
+// plain identifiers. Position comes from LAYOUTS below, never from the name.
+const SLOTS = ['left', 'center', 'right', 'fourth'];
+
+// Every layout is a grid: `cols` columns by `rows` rows, filled in reading order
+// from `slots`. `cuts` names the adjustable divider positions, as percentages —
+// 'v' entries split columns, 'h' entries split rows.
+const LAYOUTS = {
+    two:   { slots: ['left', 'right'],                     cols: 2, rows: 1, cuts: { v: [50] } },
+    three: { slots: ['left', 'center', 'right'],           cols: 3, rows: 1, cuts: { v: [33, 67] } },
+    four:  { slots: ['left', 'center', 'right', 'fourth'], cols: 4, rows: 1, cuts: { v: [25, 50, 75] } },
+    quad:  { slots: ['left', 'center', 'right', 'fourth'], cols: 2, rows: 2, cuts: { v: [50], h: [50] } }
+};
+
+const perSlot = (value) => Object.fromEntries(SLOTS.map((s) => [s, typeof value === 'function' ? value() : value]));
+
 class Banfinator {
     constructor() {
         this.previewCanvas = document.getElementById('imageCanvas');
@@ -5,10 +22,8 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '3.11';
+        this.version = '4.1';
         this.splitSlider = document.getElementById('splitSlider');
-        this.tripleLeftSlider = document.getElementById('tripleLeftSlider');
-        this.tripleRightSlider = document.getElementById('tripleRightSlider');
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
         this.bylineInput = document.getElementById('bylineInput');
@@ -16,42 +31,34 @@ class Banfinator {
         this.layoutToggleButtons = document.querySelectorAll('[data-layout-mode]');
         this.swapButton = document.getElementById('swapButton');
         this.resetLayoutButton = document.getElementById('resetLayoutBtn');
-        this.leftInput = document.getElementById('leftFileInput');
-        this.centerInput = document.getElementById('centerFileInput');
-        this.rightInput = document.getElementById('rightFileInput');
-        this.labelTargets = {
-            left: document.querySelector('[data-label-target="left"]'),
-            center: document.querySelector('[data-label-target="center"]'),
-            right: document.querySelector('[data-label-target="right"]')
-        };
-        this.zoomInputs = {
-            left: document.getElementById('leftZoom'),
-            center: document.getElementById('centerZoom'),
-            right: document.getElementById('rightZoom')
-        };
-        this.resetButtons = {
-            left: document.querySelector('[data-reset="left"]'),
-            center: document.querySelector('[data-reset="center"]'),
-            right: document.querySelector('[data-reset="right"]')
-        };
-        this.images = { left: null, center: null, right: null };
+        SLOTS.forEach((side) => { this[`${side}Input`] = document.getElementById(`${side}FileInput`); });
+        this.labelTargets = perSlot();
+        this.zoomInputs = perSlot();
+        this.resetButtons = perSlot();
+        SLOTS.forEach((side) => {
+            this.labelTargets[side] = document.querySelector(`[data-label-target="${side}"]`);
+            this.zoomInputs[side] = document.getElementById(`${side}Zoom`);
+            this.resetButtons[side] = document.querySelector(`[data-reset="${side}"]`);
+        });
+        this.images = perSlot(null);
         this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
-        this.bureauSuffixes = { left: '', center: '', right: '' };
-        this.imageLabels = { left: 'A', center: 'B', right: 'C' };
-        this.labelPool = ['A', 'B', 'C'];
+        this.bureauSuffixes = perSlot('');
+        this.labelPool = ['A', 'B', 'C', 'D'];
+        this.imageLabels = Object.fromEntries(SLOTS.map((s, i) => [s, this.labelPool[i]]));
         this.overlayLabels = {};
-        this.transforms = {
-            left: { scale: 1, offsetX: 0, offsetY: 0 },
-            center: { scale: 1, offsetX: 0, offsetY: 0 },
-            right: { scale: 1, offsetX: 0, offsetY: 0 }
-        };
-        this.bylineSources = { left: '', center: '', right: '' };
-        this.colorProfiles = { left: '', center: '', right: '' };
+        this.transforms = perSlot(() => ({ scale: 1, offsetX: 0, offsetY: 0 }));
+        this.bylineSources = perSlot('');
+        this.colorProfiles = perSlot('');
         this.bylineDirty = false;
         this.dragState = null;
         this.ratio = 0.5;
         this.layoutMode = 'two';
-        this.tripleBoundaries = { left: 33, right: 67 };
+        // Divider positions per mode, as percentages, so switching modes and
+        // coming back does not lose an adjustment.
+        this.cuts = Object.fromEntries(Object.entries(LAYOUTS).map(
+            ([mode, def]) => [mode, { v: [...(def.cuts.v || [])], h: [...(def.cuts.h || [])] }]
+        ));
+        this.hoverSide = null;
         this.dividerWidth = 10;
         this.renderCanvas.width = 3840;
         this.renderCanvas.height = 2160;
@@ -83,7 +90,7 @@ class Banfinator {
             this.canvasFrame.appendChild(overlay);
         }
 
-        ['left', 'center', 'right'].forEach((side, idx) => {
+        SLOTS.forEach((side, idx) => {
             const badge = this.createLabelBadge(this.labelPool[idx]);
             overlay.appendChild(badge);
             this.overlayLabels[side] = badge;
@@ -106,12 +113,13 @@ class Banfinator {
             this.draw();
         });
 
-        this.tripleLeftSlider?.addEventListener('input', (e) => {
-            this.setTripleBoundary('left', parseFloat(e.target.value));
-        });
-
-        this.tripleRightSlider?.addEventListener('input', (e) => {
-            this.setTripleBoundary('right', parseFloat(e.target.value));
+        // Divider sliders for three / four / quad. Each carries the mode it
+        // belongs to, the axis it cuts and its index within that axis.
+        document.querySelectorAll('[data-cut]').forEach((input) => {
+            input.addEventListener('input', (e) => {
+                const [mode, axis, index] = input.dataset.cut.split(':');
+                this.setCut(mode, axis, Number(index), parseFloat(e.target.value));
+            });
         });
 
         this.layoutToggleButtons.forEach((btn) => {
@@ -121,9 +129,10 @@ class Banfinator {
         this.exportBtn.addEventListener('click', () => this.export());
         this.resetLayoutButton?.addEventListener('click', () => this.clearAllImages());
 
-        this.setupDropZone(document.querySelector('[data-side="left"]'), this.leftInput, 'left');
-        this.setupDropZone(document.querySelector('[data-side="center"]'), this.centerInput, 'center');
-        this.setupDropZone(document.querySelector('[data-side="right"]'), this.rightInput, 'right');
+        SLOTS.forEach((side) => {
+            const zone = document.querySelector(`.drop-zone[data-side="${side}"]`);
+            if (zone && this[`${side}Input`]) this.setupDropZone(zone, this[`${side}Input`], side);
+        });
         this.setupCanvasDropTarget();
 
         this.bylineInput.addEventListener('input', () => {
@@ -132,7 +141,7 @@ class Banfinator {
         });
 
         Object.entries(this.zoomInputs).forEach(([side, input]) => {
-            input.addEventListener('input', (e) => {
+            input?.addEventListener('input', (e) => {
                 this.setZoom(side, parseFloat(e.target.value));
             });
         });
@@ -142,6 +151,13 @@ class Banfinator {
         });
 
         window.addEventListener('resize', () => this.updateLabelOverlayPositions());
+
+        // The preview's empty state and drop outline are drawn from CSS tokens,
+        // so both the toggle and an OS-level switch have to trigger a repaint.
+        new MutationObserver(() => this.draw())
+            .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        window.matchMedia('(prefers-color-scheme: dark)')
+            .addEventListener('change', () => this.draw());
 
         document.querySelectorAll('.shuffle-row').forEach((row) => {
             const side = row.getAttribute('data-side');
@@ -176,8 +192,8 @@ class Banfinator {
             this.bylineInput.value = '';
         }
         this.bylineDirty = false;
-        this.bylineSources = { left: '', center: '', right: '' };
-        this.bureauSuffixes = { left: '', center: '', right: '' };
+        this.bylineSources = perSlot('');
+        this.bureauSuffixes = perSlot('');
         this.updateSuffixInfo();
     }
 
@@ -235,23 +251,27 @@ class Banfinator {
 
         const getSideFromEvent = (event) => {
             const point = this.getCanvasPoint(event);
-            return this.getSideForPoint(point.x);
+            return this.getSideForPoint(point.x, point.y);
         };
 
+        // The old per-side inset shadows only ever described a left/right split.
+        // With four slots and a 2x2 the target is outlined on the canvas itself,
+        // which works for any grid and points at the exact region.
         const clearState = () => {
-            this.previewCanvas.classList.remove('dragover-left', 'dragover-right', 'dragover-center');
-            frame?.classList.remove('dragover', 'dragover-left', 'dragover-right', 'dragover-center');
+            frame?.classList.remove('dragover');
+            if (this.hoverSide !== null) {
+                this.hoverSide = null;
+                this.presentPreview();
+            }
         };
 
         this.previewCanvas.addEventListener('dragover', (e) => {
             e.preventDefault();
             const side = getSideFromEvent(e);
-            this.previewCanvas.classList.remove('dragover-left', 'dragover-right', 'dragover-center');
-            frame?.classList.remove('dragover-left', 'dragover-right', 'dragover-center');
             frame?.classList.add('dragover');
-            if (side) {
-                this.previewCanvas.classList.add(`dragover-${side}`);
-                frame?.classList.add(`dragover-${side}`);
+            if (side !== this.hoverSide) {
+                this.hoverSide = side;
+                this.presentPreview();
             }
         });
 
@@ -278,19 +298,28 @@ class Banfinator {
 
     updateReadout() {
         if (!this.splitReadout) return;
-        if (this.layoutMode === 'three') {
-            const widths = this.getTripleWidths();
-            this.splitReadout.textContent = `Vänster: ${widths.left}% | Mitten: ${widths.center}% | Höger: ${widths.right}%`;
+        const mode = this.layoutMode;
+
+        if (mode === 'two') {
+            const leftPercent = Math.round(this.ratio * 100);
+            this.splitReadout.textContent = `${leftPercent}% | ${100 - leftPercent}%`;
             return;
         }
 
-        const leftPercent = Math.round(this.ratio * 100);
-        const rightPercent = 100 - leftPercent;
-        this.splitReadout.textContent = `${leftPercent}% | ${rightPercent}%`;
+        if (mode === 'quad') {
+            const [colA] = this.getBandPercents(this.cuts.quad.v);
+            const [rowA] = this.getBandPercents(this.cuts.quad.h);
+            this.splitReadout.textContent = `${colA}/${100 - colA}% × ${rowA}/${100 - rowA}%`;
+            return;
+        }
+
+        this.splitReadout.textContent = this.getBandPercents(this.cuts[mode].v)
+            .map((p) => `${p}%`)
+            .join(' | ');
     }
 
     setLayoutMode(mode) {
-        if (!['two', 'three'].includes(mode)) return;
+        if (!LAYOUTS[mode]) return;
         if (this.layoutMode === mode) return;
         this.layoutMode = mode;
         this.applyLayoutMode(this.layoutMode);
@@ -300,48 +329,76 @@ class Banfinator {
     }
 
     applyLayoutMode(mode) {
-        document.body.classList.toggle('layout-three', mode === 'three');
-        if (this.layoutToggleButtons.length) {
-            this.layoutToggleButtons.forEach((btn) => {
-                const isActive = btn.dataset.layoutMode === mode;
-                btn.classList.toggle('is-active', isActive);
-                btn.classList.toggle('is-muted', !isActive);
-                btn.setAttribute('aria-pressed', isActive);
-            });
-        }
+        const active = new Set(LAYOUTS[mode].slots);
+
+        // Visibility is driven by the `hidden` attribute, not a display rule, so a
+        // shown element keeps whatever display its own class gives it. A
+        // `display: block` override here silently un-centres the flex drop zones.
+        document.querySelectorAll('[data-layout-show]').forEach((el) => {
+            el.hidden = !el.dataset.layoutShow.split(' ').includes(mode);
+        });
+        document.querySelectorAll('[data-side]').forEach((el) => {
+            if (el.matches('[data-layout-show]')) return;
+            el.hidden = !active.has(el.dataset.side);
+        });
+
+        document.body.classList.remove(...Object.keys(LAYOUTS).map((m) => `layout-${m}`));
+        document.body.classList.add(`layout-${mode}`);
+
+        this.layoutToggleButtons.forEach((btn) => {
+            const isActive = btn.dataset.layoutMode === mode;
+            btn.classList.toggle('is-active', isActive);
+            btn.classList.toggle('is-muted', !isActive);
+            btn.setAttribute('aria-pressed', isActive);
+        });
+
         this.splitReadout?.setAttribute('aria-live', 'polite');
-        if (mode === 'three') {
-            if (this.tripleLeftSlider) this.tripleLeftSlider.value = this.tripleBoundaries.left;
-            if (this.tripleRightSlider) this.tripleRightSlider.value = this.tripleBoundaries.right;
-        } else if (this.splitSlider) {
-            this.splitSlider.value = this.ratio * 100;
-        }
+        if (mode === 'two' && this.splitSlider) this.splitSlider.value = this.ratio * 100;
+        this.syncCutInputs();
         this.updateBylineField();
         this.updateSuffixInfo();
     }
 
     getActiveSides() {
-        return this.layoutMode === 'three' ? ['left', 'center', 'right'] : ['left', 'right'];
+        // A copy: callers reorder and splice this, and LAYOUTS is shared state.
+        return [...LAYOUTS[this.layoutMode].slots];
     }
 
-    setTripleBoundary(which, value) {
-        const minGap = 10;
-        if (which === 'left') {
-            this.tripleBoundaries.left = Math.min(value, this.tripleBoundaries.right - minGap);
-            this.tripleLeftSlider.value = this.tripleBoundaries.left;
-        } else {
-            this.tripleBoundaries.right = Math.max(value, this.tripleBoundaries.left + minGap);
-            this.tripleRightSlider.value = this.tripleBoundaries.right;
-        }
+    /**
+     * Move one divider, keeping the cuts on that axis sorted and at least
+     * MIN_GAP apart. Neighbours are pushed rather than swapped, so dragging a
+     * middle divider to an end collapses the bands evenly instead of reordering
+     * the images.
+     */
+    setCut(mode, axis, index, value) {
+        const MIN_GAP = 10;
+        const list = this.cuts[mode]?.[axis];
+        if (!list || index >= list.length) return;
+
+        const lower = index === 0 ? 0 : list[index - 1] + MIN_GAP;
+        const upper = index === list.length - 1 ? 100 : list[index + 1] - MIN_GAP;
+        list[index] = Math.min(Math.max(value, lower), upper);
+
+        this.syncCutInputs();
         this.updateReadout();
         this.draw();
     }
 
-    getTripleWidths() {
-        const left = Math.round(this.tripleBoundaries.left);
-        const right = Math.round(100 - this.tripleBoundaries.right);
-        const center = Math.max(0, 100 - left - right);
-        return { left, center, right };
+    syncCutInputs() {
+        document.querySelectorAll('[data-cut]').forEach((input) => {
+            const [mode, axis, index] = input.dataset.cut.split(':');
+            const list = this.cuts[mode]?.[axis];
+            if (list) input.value = list[Number(index)];
+        });
+    }
+
+    /** Band sizes along one axis, in whole percent, summing to 100. */
+    getBandPercents(cuts) {
+        const edges = [0, ...cuts, 100];
+        const sizes = edges.slice(1).map((edge, i) => Math.round(edge - edges[i]));
+        // Push rounding error into the last band so the readout always totals 100.
+        sizes[sizes.length - 1] = 100 - sizes.slice(0, -1).reduce((a, b) => a + b, 0);
+        return sizes;
     }
 
     updateButtonState() {
@@ -350,7 +407,7 @@ class Banfinator {
     }
 
     assignLabelToSide(side) {
-        const defaultLabel = this.labelPool[['left', 'center', 'right'].indexOf(side)] || this.labelPool[0];
+        const defaultLabel = this.labelPool[SLOTS.indexOf(side)] || this.labelPool[0];
         this.imageLabels[side] = defaultLabel;
     }
 
@@ -365,31 +422,38 @@ class Banfinator {
     updateLabelOverlayPositions() {
         if (!this.labelOverlay || !this.previewCanvas || !this.canvasFrame) return;
 
-        const showLabels = this.layoutMode === 'three';
+        const showLabels = this.getActiveSides().length > 2;
         this.labelOverlay.classList.toggle('is-visible', showLabels);
         if (!showLabels) return;
 
-        const { regions } = this.getLayoutRegions(this.renderCanvas.width);
+        const { regions } = this.getLayoutRegions();
         const frameRect = this.canvasFrame.getBoundingClientRect();
         const canvasRect = this.previewCanvas.getBoundingClientRect();
         const scale = canvasRect.width / this.renderCanvas.width;
         const offsetX = canvasRect.left - frameRect.left;
-        const topOffset = Math.max(6, canvasRect.top - frameRect.top - 8);
+        const offsetY = canvasRect.top - frameRect.top;
 
-        ['left', 'center', 'right'].forEach((side, idx) => {
+        SLOTS.forEach((side, idx) => {
             const badge = this.overlayLabels[side];
+            if (!badge) return;
             const region = regions[side];
-            if (!badge || !region) return;
-            const label = this.imageLabels[side] || this.labelPool[idx] || '';
-            const centerX = offsetX + (region.x + region.width / 2) * scale;
-            badge.style.left = `${centerX}px`;
-            badge.style.top = `${topOffset}px`;
-            badge.textContent = label;
+            // A slot the current layout does not use has no badge to place.
+            badge.hidden = !region;
+            if (!region) return;
+
+            badge.textContent = this.imageLabels[side] || this.labelPool[idx] || '';
+            badge.style.left = `${offsetX + (region.x + region.width / 2) * scale}px`;
+            // Sit inside the region's top edge. In a single row that reads as
+            // sitting above the canvas, as before; in a 2x2 the bottom pair need
+            // their own badges inside the frame.
+            badge.style.top = region.y === 0
+                ? `${Math.max(6, offsetY - 8)}px`
+                : `${offsetY + region.y * scale + 8}px`;
         });
     }
 
     shiftImage(side, direction) {
-        if (this.layoutMode !== 'three') return;
+        if (this.getActiveSides().length < 3) return;
         const order = this.getActiveSides();
         const currentIndex = order.indexOf(side);
         if (currentIndex === -1) return;
@@ -438,15 +502,21 @@ class Banfinator {
         this.updateLabelOverlayPositions();
     }
 
-    renderComposite() {
+    /**
+     * Paint the offscreen surface. The preview is a straight copy of it, so the
+     * palette has to be chosen here: themed while editing, fixed neutral when
+     * export() repaints it on the way to a file.
+     */
+    renderComposite({ forExport = false } = {}) {
         if (!this.renderCtx) return;
-        this.paintComposite(this.renderCtx, this.renderCanvas.width, this.renderCanvas.height);
+        this.paintComposite(this.renderCtx, this.renderCanvas.width, this.renderCanvas.height, { forExport });
     }
 
     presentPreview() {
         if (!this.previewCtx || !this.renderCanvas) return;
-        this.previewCtx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
-        this.previewCtx.drawImage(
+        const ctx = this.previewCtx;
+        ctx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+        ctx.drawImage(
             this.renderCanvas,
             0,
             0,
@@ -457,32 +527,76 @@ class Banfinator {
             this.previewCanvas.width,
             this.previewCanvas.height
         );
+        this.drawDropTarget(ctx);
     }
 
-    paintComposite(ctx, width, height) {
-        ctx.fillStyle = '#1c1c1c';
+    /** Outline the region a dragged file would land in. Preview only. */
+    drawDropTarget(ctx) {
+        if (!this.hoverSide) return;
+        const region = this.getLayoutRegions(this.previewCanvas.width, this.previewCanvas.height)
+            .regions[this.hoverSide];
+        if (!region) return;
+
+        const accent = getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-focus').trim() || '#0098DA';
+        const inset = 12;
+
+        ctx.save();
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 16;
+        ctx.strokeRect(
+            region.x + inset,
+            region.y + inset,
+            region.width - inset * 2,
+            region.height - inset * 2
+        );
+        ctx.restore();
+    }
+
+    /**
+     * Colours for the empty state. The export keeps the fixed neutral so a saved
+     * collage never depends on what theme the page happened to be in; the preview
+     * follows the page tokens so an empty slot does not sit as a black hole in a
+     * cream layout.
+     */
+    getCanvasPalette(forExport) {
+        if (forExport) return { ground: '#1c1c1c', hatch: 'rgba(255, 255, 255, 0.05)', divider: '#ffffff' };
+
+        const css = getComputedStyle(document.documentElement);
+        const token = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+        return {
+            ground: token('--color-background-tertiary', '#F4EBE2'),
+            hatch: token('--color-border-primary', '#E5E2E1'),
+            divider: token('--color-surface-raised', '#ffffff')
+        };
+    }
+
+    paintComposite(ctx, width, height, { forExport = false } = {}) {
+        const palette = this.getCanvasPalette(forExport);
+
+        ctx.fillStyle = palette.ground;
         ctx.fillRect(0, 0, width, height);
 
-        const { regions, dividers } = this.getLayoutRegions(width);
+        const { regions, dividers } = this.getLayoutRegions(width, height);
         Object.entries(regions).forEach(([side, region]) => {
             if (this.images[side]) {
-                this.drawImageToRegion(ctx, this.images[side], region, height, side);
+                this.drawImageToRegion(ctx, this.images[side], region, side);
             } else {
-                this.drawEmptyPattern(ctx, region.x, 0, region.width, height);
+                this.drawEmptyPattern(ctx, region, palette.hatch);
             }
         });
 
-        ctx.fillStyle = '#ffffff';
-        dividers.forEach((x) => ctx.fillRect(x, 0, this.dividerWidth, height));
-
+        ctx.fillStyle = palette.divider;
+        dividers.forEach((d) => ctx.fillRect(d.x, d.y, d.width, d.height));
     }
 
-    drawEmptyPattern(ctx, x, y, w, h) {
+    drawEmptyPattern(ctx, region, stroke) {
+        const { x, y, width: w, height: h } = region;
         ctx.save();
         ctx.beginPath();
         ctx.rect(x, y, w, h);
         ctx.clip();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.strokeStyle = stroke;
         ctx.lineWidth = 6;
         const gap = 64;
         for (let i = -h; i < w + h; i += gap) {
@@ -494,11 +608,11 @@ class Banfinator {
         ctx.restore();
     }
 
-    drawImageToRegion(ctx, img, region, canvasHeight, side) {
+    drawImageToRegion(ctx, img, region, side) {
         if (!img) return;
-        const metrics = this.computeBaseMetrics(img, region, canvasHeight, side);
+        const metrics = this.computeBaseMetrics(img, region, side);
         if (!metrics) return;
-        const offsets = this.clampOffsetsForRegion(this.transforms[side].offsetX, this.transforms[side].offsetY, metrics, region, canvasHeight);
+        const offsets = this.clampOffsetsForRegion(this.transforms[side].offsetX, this.transforms[side].offsetY, metrics, region);
         this.transforms[side].offsetX = offsets.x;
         this.transforms[side].offsetY = offsets.y;
         const dx = metrics.dxBase + offsets.x;
@@ -506,28 +620,28 @@ class Banfinator {
 
         ctx.save();
         ctx.beginPath();
-        ctx.rect(region.x, 0, region.width, canvasHeight);
+        ctx.rect(region.x, region.y, region.width, region.height);
         ctx.clip();
         ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
         ctx.restore();
     }
 
-    computeBaseMetrics(img, region, canvasHeight, side, scaleOverride = null) {
-        const baseScale = Math.max(region.width / img.width, canvasHeight / img.height);
+    computeBaseMetrics(img, region, side, scaleOverride = null) {
+        const baseScale = Math.max(region.width / img.width, region.height / img.height);
         const scale = baseScale * (scaleOverride ?? this.transforms[side].scale);
         const drawWidth = img.width * scale;
         const drawHeight = img.height * scale;
         const dxBase = region.x + (region.width - drawWidth) / 2;
-        const dyBase = (canvasHeight - drawHeight) / 2;
+        const dyBase = region.y + (region.height - drawHeight) / 2;
 
         return { drawWidth, drawHeight, dxBase, dyBase, scale };
     }
 
-    clampOffsetsForRegion(offsetX, offsetY, metrics, region, canvasHeight) {
+    clampOffsetsForRegion(offsetX, offsetY, metrics, region) {
         const maxOffsetX = region.x - metrics.dxBase;
         const minOffsetX = region.x + region.width - (metrics.dxBase + metrics.drawWidth);
-        const maxOffsetY = 0 - metrics.dyBase;
-        const minOffsetY = canvasHeight - (metrics.dyBase + metrics.drawHeight);
+        const maxOffsetY = region.y - metrics.dyBase;
+        const minOffsetY = region.y + region.height - (metrics.dyBase + metrics.drawHeight);
 
         return {
             x: Math.min(maxOffsetX, Math.max(minOffsetX, offsetX)),
@@ -535,46 +649,63 @@ class Banfinator {
         };
     }
 
-    getLayoutRegions(width = this.renderCanvas.width) {
-        if (this.layoutMode === 'two') {
-            const dividerX = Math.round(this.ratio * (width - this.dividerWidth));
-            return {
-                regions: {
-                    left: { x: 0, width: dividerX },
-                    right: { x: dividerX + this.dividerWidth, width: width - dividerX - this.dividerWidth }
-                },
-                dividers: [dividerX]
-            };
-        }
+    /**
+     * Slice one axis at the given cut percentages, leaving a divider-width gap at
+     * each cut. Returns the bands in order plus the divider positions.
+     */
+    sliceAxis(total, cuts) {
+        const gaps = cuts.length;
+        const usable = total - this.dividerWidth * gaps;
+        const bands = [];
+        const dividers = [];
+        let prevPercent = 0;
+        let pos = 0;
 
-        const dividerCount = 2;
-        const availableWidth = width - this.dividerWidth * dividerCount;
-        const splits = this.getTripleWidths();
-        const leftWidth = Math.round((splits.left / 100) * availableWidth);
-        const centerWidth = Math.round((splits.center / 100) * availableWidth);
-        const rightWidth = availableWidth - leftWidth - centerWidth;
+        cuts.forEach((cut) => {
+            const size = Math.round(((cut - prevPercent) / 100) * usable);
+            bands.push({ start: pos, size });
+            dividers.push(pos + size);
+            pos += size + this.dividerWidth;
+            prevPercent = cut;
+        });
+        // The last band takes the remainder, so rounding never leaves a seam.
+        bands.push({ start: pos, size: total - pos });
 
-        const firstDivider = leftWidth;
-        const secondDivider = leftWidth + this.dividerWidth + centerWidth;
-
-        return {
-            regions: {
-                left: { x: 0, width: leftWidth },
-                center: { x: leftWidth + this.dividerWidth, width: centerWidth },
-                right: { x: secondDivider + this.dividerWidth, width: rightWidth }
-            },
-            dividers: [firstDivider, secondDivider]
-        };
+        return { bands, dividers };
     }
 
-    getSideForPoint(x) {
-        const { regions, dividers } = this.getLayoutRegions();
-        for (const [side, region] of Object.entries(regions)) {
-            if (x >= region.x && x <= region.x + region.width) return side;
-        }
+    getLayoutRegions(width = this.renderCanvas.width, height = this.renderCanvas.height) {
+        const def = LAYOUTS[this.layoutMode];
+        const cuts = this.cuts[this.layoutMode];
 
-        const paddedDividers = new Set(dividers.flatMap((d) => [d, d + this.dividerWidth]));
-        if ([...paddedDividers].some((point) => Math.abs(point - x) < this.dividerWidth / 2)) return null;
+        // 'two' keeps its own single ratio so the existing slider stays authoritative.
+        const vCuts = this.layoutMode === 'two' ? [this.ratio * 100] : cuts.v;
+        const cols = this.sliceAxis(width, vCuts);
+        const rows = this.sliceAxis(height, cuts.h || []);
+
+        const regions = {};
+        def.slots.forEach((side, i) => {
+            const col = cols.bands[i % def.cols];
+            const row = rows.bands[Math.floor(i / def.cols)];
+            regions[side] = { x: col.start, y: row.start, width: col.size, height: row.size };
+        });
+
+        // Dividers as rects so a 2x2 can draw both axes.
+        const dividers = [
+            ...cols.dividers.map((x) => ({ x, y: 0, width: this.dividerWidth, height })),
+            ...rows.dividers.map((y) => ({ x: 0, y, width, height: this.dividerWidth }))
+        ];
+
+        return { regions, dividers };
+    }
+
+    getSideForPoint(x, y) {
+        const { regions } = this.getLayoutRegions();
+        for (const [side, region] of Object.entries(regions)) {
+            if (x >= region.x && x <= region.x + region.width &&
+                y >= region.y && y <= region.y + region.height) return side;
+        }
+        // In a divider gap — no slot owns the point.
         return null;
     }
 
@@ -586,7 +717,9 @@ class Banfinator {
         const exportedAt = new Date();
         const srgbProfile = await this.getSrgbProfileBytes();
 
-        this.renderComposite();
+        // Repaint with the fixed neutral so a saved collage never carries the
+        // page's current theme into the file, then restore the themed preview.
+        this.renderComposite({ forExport: true });
 
         const baseDataUrl = await this.canvasToSrgbDataUrl(this.renderCanvas);
         const finalDataUrl = this.injectMetadata(baseDataUrl, byline, exportedAt, srgbProfile);
@@ -594,6 +727,8 @@ class Banfinator {
         link.download = `TheBanfinator_${timestamp}.jpg`;
         link.href = finalDataUrl;
         link.click();
+
+        this.draw();
     }
 
     formatTimestamp(date) {
@@ -1089,7 +1224,7 @@ class Banfinator {
     startDrag(event) {
         if (!this.getActiveSides().some((side) => this.images[side])) return;
         const point = this.getCanvasPoint(event);
-        const side = this.getSideForPoint(point.x);
+        const side = this.getSideForPoint(point.x, point.y);
         if (!side || !this.images[side]) return;
 
         this.dragState = {
@@ -1127,7 +1262,7 @@ class Banfinator {
         event.preventDefault();
 
         const point = this.getCanvasPoint(event);
-        const side = this.getSideForPoint(point.x);
+        const side = this.getSideForPoint(point.x, point.y);
         if (!side || !this.images[side]) return;
 
         const delta = -event.deltaY * 0.0015;
@@ -1148,8 +1283,8 @@ class Banfinator {
         const img = this.images[side];
         if (!img) return;
         const region = this.getRegionForSide(side);
-        const metrics = this.computeBaseMetrics(img, region, this.renderCanvas.height, side);
-        const clamped = this.clampOffsetsForRegion(offsetX, offsetY, metrics, region, this.renderCanvas.height);
+        const metrics = this.computeBaseMetrics(img, region, side);
+        const clamped = this.clampOffsetsForRegion(offsetX, offsetY, metrics, region);
         this.transforms[side].offsetX = clamped.x;
         this.transforms[side].offsetY = clamped.y;
     }
@@ -1168,8 +1303,8 @@ class Banfinator {
         if (targetScale === currentScale) return;
 
         const region = this.getRegionForSide(side);
-        const currentMetrics = this.computeBaseMetrics(img, region, this.renderCanvas.height, side, currentScale);
-        const newMetrics = this.computeBaseMetrics(img, region, this.renderCanvas.height, side, targetScale);
+        const currentMetrics = this.computeBaseMetrics(img, region, side, currentScale);
+        const newMetrics = this.computeBaseMetrics(img, region, side, targetScale);
 
         const imageX = (point.x - (currentMetrics.dxBase + this.transforms[side].offsetX)) / currentMetrics.scale;
         const imageY = (point.y - (currentMetrics.dyBase + this.transforms[side].offsetY)) / currentMetrics.scale;
@@ -1289,10 +1424,10 @@ class Banfinator {
 
         const activeSides = this.getActiveSides();
         const suffix = this.bureauSuffixes[activeSides[0]];
-        this.suffixInfoBox.textContent =
-            activeSides.length === 2
-                ? `Båda bilderna är ${suffix} – suffix slås ihop automatiskt.`
-                : `Alla tre bilder är ${suffix} – suffix slås ihop automatiskt.`;
+        const subject = activeSides.length === 2
+            ? 'Båda bilderna'
+            : `Alla ${{ 3: 'tre', 4: 'fyra' }[activeSides.length] || activeSides.length} bilder`;
+        this.suffixInfoBox.textContent = `${subject} är ${suffix} – suffix slås ihop automatiskt.`;
         this.suffixInfoBox.hidden = false;
     }
 

@@ -26,7 +26,7 @@
     <!-- Open Graph -->
     <meta property="og:title" content="Svenska CP-Tjänst | The Banfinator">
     <meta property="og:description" content="Snabba collage i 16:9 med rätt byline.">
-    <meta property="og:image" content="https://thebanfinator.cptjanst.se/brand/og.png?v=4.0">
+    <meta property="og:image" content="https://thebanfinator.cptjanst.se/brand/og.png?v=4.1">
     <meta property="og:image:alt" content="Svenska CP-Tjänst | The Banfinator – collageverktyg">
     <meta property="og:url" content="https://thebanfinator.cptjanst.se/">
     <meta property="og:type" content="website">
@@ -35,24 +35,24 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Svenska CP-Tjänst | The Banfinator">
     <meta name="twitter:description" content="Snabba collage i 16:9 med rätt byline.">
-    <meta name="twitter:image" content="https://thebanfinator.cptjanst.se/brand/og.png?v=4.0">
+    <meta name="twitter:image" content="https://thebanfinator.cptjanst.se/brand/og.png?v=4.1">
 
-    <link rel="icon" type="image/svg+xml" href="brand/favicon.svg?v=4.0">
-    <link rel="alternate icon" type="image/png" href="brand/favicon-32.png?v=4.0">
-    <link rel="apple-touch-icon" href="brand/apple-touch-icon.png?v=4.0">
+    <link rel="icon" type="image/svg+xml" href="brand/favicon.svg?v=4.1">
+    <link rel="alternate icon" type="image/png" href="brand/favicon-32.png?v=4.1">
+    <link rel="apple-touch-icon" href="brand/apple-touch-icon.png?v=4.1">
 
     <!-- The two faces above the fold. The rest load on demand. -->
     <link rel="preload" as="font" type="font/woff2" href="fonts/sueca-web-hd-semibold_c8feba36.woff2" crossorigin>
     <link rel="preload" as="font" type="font/woff2" href="fonts/SvDEsterBlenda-Bold_2775ffc4.woff2" crossorigin>
 
-    <link rel="stylesheet" href="styles/brand.css?v=4.0">
-    <link rel="stylesheet" href="styles/app.css?v=4.0">
+    <link rel="stylesheet" href="styles/brand.css?v=4.1">
+    <link rel="stylesheet" href="styles/app.css?v=4.1">
 </head>
 <body>
 
     <header class="site-header">
         <div class="site-header__inner">
-            <img class="brand-mark" src="brand/banfa-mark.svg?v=4.0" alt="" width="40" height="40">
+            <img class="brand-mark" src="brand/banfa-mark.svg?v=4.1" alt="" width="40" height="40">
 
             <div>
                 <!-- §3.4: the wordmark is inlined, not an <img>, so --logoColor
@@ -64,14 +64,16 @@
                 </div>
                 <p class="header-meta">
                     <span>Collage i 16:9 med rätt byline</span>
-                    <span class="version-stamp">v4.0</span>
+                    <span class="version-stamp">v4.1</span>
                 </p>
             </div>
 
             <div class="header-actions">
-                <div class="segmented" role="group" aria-label="Välj antal bilder">
+                <div class="segmented" role="group" aria-label="Välj layout">
                     <button type="button" class="segmented__option is-active" data-layout-mode="two" aria-pressed="true">2 bilder</button>
                     <button type="button" class="segmented__option is-muted" data-layout-mode="three" aria-pressed="false">3 bilder</button>
+                    <button type="button" class="segmented__option is-muted" data-layout-mode="four" aria-pressed="false">4 bilder</button>
+                    <button type="button" class="segmented__option is-muted" data-layout-mode="quad" aria-pressed="false">2×2 bilder</button>
                 </div>
                 <button type="button" id="themeToggle" class="btn btn--outline btn--icon btn--sm" aria-label="Byt färgtema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
@@ -89,25 +91,32 @@
         <section class="section" aria-label="Ladda upp bilder">
             <div class="zone-grid">
                 <div class="drop-zone" data-side="left">
-                    <span class="badge">Vänster</span>
+                    <span class="badge">A</span>
                     <span class="drop-zone__title">Dra och släpp JPG</span>
                     <span class="drop-zone__hint">eller klicka för att välja fil</span>
                     <span class="drop-zone__loaded badge badge--good">Bild laddad</span>
                     <input type="file" id="leftFileInput" accept="image/jpeg,image/jpg" hidden>
                 </div>
-                <div class="drop-zone layout-three-only" data-side="center">
-                    <span class="badge">Mitten</span>
+                <div class="drop-zone" data-side="center">
+                    <span class="badge">B</span>
                     <span class="drop-zone__title">Dra och släpp JPG</span>
                     <span class="drop-zone__hint">eller klicka för att välja fil</span>
                     <span class="drop-zone__loaded badge badge--good">Bild laddad</span>
                     <input type="file" id="centerFileInput" accept="image/jpeg,image/jpg" hidden>
                 </div>
                 <div class="drop-zone" data-side="right">
-                    <span class="badge">Höger</span>
+                    <span class="badge">C</span>
                     <span class="drop-zone__title">Dra och släpp JPG</span>
                     <span class="drop-zone__hint">eller klicka för att välja fil</span>
                     <span class="drop-zone__loaded badge badge--good">Bild laddad</span>
                     <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" hidden>
+                </div>
+                <div class="drop-zone" data-side="fourth">
+                    <span class="badge">D</span>
+                    <span class="drop-zone__title">Dra och släpp JPG</span>
+                    <span class="drop-zone__hint">eller klicka för att välja fil</span>
+                    <span class="drop-zone__loaded badge badge--good">Bild laddad</span>
+                    <input type="file" id="fourthFileInput" accept="image/jpeg,image/jpg" hidden>
                 </div>
             </div>
         </section>
@@ -117,7 +126,7 @@
             <div class="card__body">
                 <div id="splitReadout" class="split-readout" aria-live="polite">50% | 50%</div>
 
-                <div class="control-row layout-two-only">
+                <div class="control-row" data-layout-show="two">
                     <label class="label" for="splitSlider">Horisontell fördelning</label>
                     <input type="range" id="splitSlider" class="range" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
                     <div class="center-actions">
@@ -125,37 +134,67 @@
                     </div>
                 </div>
 
-                <div class="control-row layout-three-only">
-                    <label class="label" for="tripleLeftSlider">Balans tre bilder</label>
+                <!-- Divider positions. data-cut is "mode:axis:index" — which
+                     layout the slider belongs to, which axis it cuts, and its
+                     place along that axis. -->
+                <div class="control-row" data-layout-show="three">
+                    <label class="label">Balans tre bilder</label>
                     <div class="control-grid">
-                        <input type="range" id="tripleLeftSlider" class="range" min="10" max="80" value="33" aria-label="Justera bredd för bild A">
-                        <input type="range" id="tripleRightSlider" class="range" min="20" max="90" value="67" aria-label="Justera bredd för bild C">
+                        <input type="range" class="range" data-cut="three:v:0" min="10" max="80" value="33" aria-label="Justera första avdelaren">
+                        <input type="range" class="range" data-cut="three:v:1" min="20" max="90" value="67" aria-label="Justera andra avdelaren">
                     </div>
                     <p class="description">A och C styrs av reglagen. B fyller utrymmet mellan dem.</p>
+                </div>
 
-                    <div>
+                <div class="control-row" data-layout-show="four">
+                    <label class="label">Balans fyra bilder</label>
+                    <div class="control-grid">
+                        <input type="range" class="range" data-cut="four:v:0" min="5" max="70" value="25" aria-label="Justera första avdelaren">
+                        <input type="range" class="range" data-cut="four:v:1" min="15" max="85" value="50" aria-label="Justera andra avdelaren">
+                        <input type="range" class="range" data-cut="four:v:2" min="30" max="95" value="75" aria-label="Justera tredje avdelaren">
+                    </div>
+                    <p class="description">Reglagen sätter de tre avdelarna. Bilderna fyller utrymmet mellan dem.</p>
+                </div>
+
+                <div class="control-row" data-layout-show="quad">
+                    <label class="label">Balans 2×2</label>
+                    <div class="control-grid">
+                        <input type="range" class="range" data-cut="quad:v:0" min="15" max="85" value="50" aria-label="Justera lodrät avdelare">
+                        <input type="range" class="range" data-cut="quad:h:0" min="15" max="85" value="50" aria-label="Justera vågrät avdelare">
+                    </div>
+                    <p class="description">Första reglaget flyttar den lodräta avdelaren, andra den vågräta. A och B ligger överst, C och D under.</p>
+                </div>
+
+                <div class="control-row" data-layout-show="three four quad">
+                    <label class="label">Ordning</label>
                         <div class="shuffle-row" data-side="left">
                             <span class="badge" data-label-target="left">A</span>
                             <div class="shuffle-actions">
-                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta A åt vänster">◀</button>
-                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta A åt höger">▶</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta A bakåt">◀</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta A framåt">▶</button>
                             </div>
                         </div>
                         <div class="shuffle-row" data-side="center">
                             <span class="badge" data-label-target="center">B</span>
                             <div class="shuffle-actions">
-                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta B åt vänster">◀</button>
-                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta B åt höger">▶</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta B bakåt">◀</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta B framåt">▶</button>
                             </div>
                         </div>
                         <div class="shuffle-row" data-side="right">
                             <span class="badge" data-label-target="right">C</span>
                             <div class="shuffle-actions">
-                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta C åt vänster">◀</button>
-                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta C åt höger">▶</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta C bakåt">◀</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta C framåt">▶</button>
                             </div>
                         </div>
-                    </div>
+                        <div class="shuffle-row" data-side="fourth">
+                            <span class="badge" data-label-target="fourth">D</span>
+                            <div class="shuffle-actions">
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="left" aria-label="Flytta D bakåt">◀</button>
+                                <button type="button" class="btn btn--outline btn--sm btn--icon" data-shift="right" aria-label="Flytta D framåt">▶</button>
+                            </div>
+                        </div>
                 </div>
             </div>
         </section>
@@ -166,17 +205,17 @@
                 <div class="card" data-side="left">
                     <div class="card__body">
                         <div class="tune-card__head">
-                            <span class="badge">Vänster bild</span>
+                            <span class="badge">A</span>
                             <button type="button" class="btn btn--ghost btn--xs" data-reset="left">Återställ vy</button>
                         </div>
                         <label class="label" for="leftZoom">Zoom</label>
                         <input type="range" id="leftZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
                     </div>
                 </div>
-                <div class="card layout-three-only" data-side="center">
+                <div class="card" data-side="center">
                     <div class="card__body">
                         <div class="tune-card__head">
-                            <span class="badge">Mitten</span>
+                            <span class="badge">B</span>
                             <button type="button" class="btn btn--ghost btn--xs" data-reset="center">Återställ vy</button>
                         </div>
                         <label class="label" for="centerZoom">Zoom</label>
@@ -186,11 +225,21 @@
                 <div class="card" data-side="right">
                     <div class="card__body">
                         <div class="tune-card__head">
-                            <span class="badge">Höger bild</span>
+                            <span class="badge">C</span>
                             <button type="button" class="btn btn--ghost btn--xs" data-reset="right">Återställ vy</button>
                         </div>
                         <label class="label" for="rightZoom">Zoom</label>
                         <input type="range" id="rightZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
+                    </div>
+                </div>
+                <div class="card" data-side="fourth">
+                    <div class="card__body">
+                        <div class="tune-card__head">
+                            <span class="badge">D</span>
+                            <button type="button" class="btn btn--ghost btn--xs" data-reset="fourth">Återställ vy</button>
+                        </div>
+                        <label class="label" for="fourthZoom">Zoom</label>
+                        <input type="range" id="fourthZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma fjärde bilden">
                     </div>
                 </div>
             </div>
@@ -268,6 +317,6 @@
             sync();
         })();
     </script>
-    <script src="script.js?v=4.0"></script>
+    <script src="script.js?v=4.1"></script>
 </body>
 </html>

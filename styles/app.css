@@ -4,20 +4,19 @@
    ramps layer — never a raw ramp, per brand-book §2.1.
 
    The class names here are a contract with script.js. Do not rename without
-   changing it: .drop-zone, .dragover, .dragover-left/-right, .canvas-frame,
-   .label-overlay, .is-visible, .label-badge, .shuffle-row, .is-active,
-   .is-muted, and body.layout-three.
+   changing it: .drop-zone, .dragover, .canvas-frame, .label-overlay,
+   .is-visible, .label-badge, .shuffle-row, .is-active, .is-muted, and
+   body.layout-{two,three,four,quad}.
    ========================================================================== */
 
-/* ── Layout mode toggles (JS-driven) ──────────────────────────────────────────
-   Written as :not() so the *visible* state carries no display declaration at
-   all. Setting `display: block` on the shown element would override the
-   element's own display — .drop-zone is a flex column, and a block override
-   silently un-centres it.
+/* ── Layout mode visibility ───────────────────────────────────────────────────
+   With four layouts, per-mode classes stopped scaling. script.js now sets the
+   `hidden` attribute instead, which leaves a *shown* element with no display
+   declaration from the layout system at all — a `display: block` override would
+   silently un-centre .drop-zone, which is a flex column.
    ------------------------------------------------------------------------- */
 
-body:not(.layout-three) .layout-three-only { display: none; }
-body.layout-three .layout-two-only { display: none; }
+[hidden] { display: none !important; }
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 
@@ -58,6 +57,7 @@ body.layout-three .layout-two-only { display: none; }
    segment filled — flat, per §4.3, no shadow doing the hierarchy. */
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
   padding: 2px;
   gap: 2px;
   border: 1px solid var(--color-border-primary);
@@ -100,8 +100,10 @@ body.layout-three .layout-two-only { display: none; }
 }
 
 @media (min-width: 768px) {
-  .zone-grid { grid-template-columns: repeat(2, 1fr); }
+  .zone-grid,
+  body.layout-quad .zone-grid { grid-template-columns: repeat(2, 1fr); }
   body.layout-three .zone-grid { grid-template-columns: repeat(3, 1fr); }
+  body.layout-four .zone-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 .drop-zone {
@@ -184,7 +186,7 @@ body.layout-three .layout-two-only { display: none; }
 }
 
 @media (min-width: 768px) {
-  .control-grid { grid-template-columns: repeat(2, 1fr); }
+  .control-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 }
 
 .center-actions {
@@ -224,8 +226,10 @@ body.layout-three .layout-two-only { display: none; }
 }
 
 @media (min-width: 768px) {
-  .tune-grid { grid-template-columns: repeat(2, 1fr); }
+  .tune-grid,
+  body.layout-quad .tune-grid { grid-template-columns: repeat(2, 1fr); }
   body.layout-three .tune-grid { grid-template-columns: repeat(3, 1fr); }
+  body.layout-four .tune-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 .tune-card__head {
@@ -244,10 +248,9 @@ body.layout-three .layout-two-only { display: none; }
   transition: box-shadow 0.15s ease;
 }
 
+/* The target region is outlined on the canvas itself by drawDropTarget(), which
+   works for any grid; the frame only says "you are over the canvas". */
 .canvas-frame.dragover { box-shadow: 0 0 0 2px var(--color-focus); }
-
-.canvas-frame.dragover-left #imageCanvas { box-shadow: inset 6px 0 0 var(--color-action); }
-.canvas-frame.dragover-right #imageCanvas { box-shadow: inset -6px 0 0 var(--color-action); }
 
 #imageCanvas {
   width: 100%;
