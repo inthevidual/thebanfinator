@@ -44,7 +44,7 @@
     <link rel="preload" as="font" type="font/woff2" href="fonts/SvDEsterBlenda-Bold_2775ffc4.woff2" crossorigin>
 
     <link rel="stylesheet" href="styles/brand.css?v=2f060107">
-    <link rel="stylesheet" href="styles/app.css?v=e88ff8bb">
+    <link rel="stylesheet" href="styles/app.css?v=3d92b8ce">
 </head>
 <body>
 
@@ -62,11 +62,11 @@
             </div>
 
             <div class="header-actions">
-                <div class="segmented" role="group" aria-label="Välj layout">
-                    <button type="button" class="segmented__option is-active" data-layout-mode="two" aria-pressed="true">2 bilder</button>
-                    <button type="button" class="segmented__option is-muted" data-layout-mode="three" aria-pressed="false">3 bilder</button>
-                    <button type="button" class="segmented__option is-muted" data-layout-mode="four" aria-pressed="false">4 bilder</button>
-                    <button type="button" class="segmented__option is-muted" data-layout-mode="quad" aria-pressed="false">2×2 bilder</button>
+                <div class="segmented" role="group" aria-label="Välj mall">
+                    <button type="button" class="segmented__option is-active" data-layout-mode="lika" aria-pressed="true">Lika stora</button>
+                    <button type="button" class="segmented__option is-muted" data-layout-mode="vanster" aria-pressed="false">Stor vänster</button>
+                    <button type="button" class="segmented__option is-muted" data-layout-mode="hoger" aria-pressed="false">Stor höger</button>
+                    <button type="button" class="segmented__option is-muted" data-layout-mode="tre" aria-pressed="false">Tre bilder</button>
                 </div>
                 <button type="button" id="themeToggle" class="btn btn--outline btn--icon btn--sm" aria-label="Byt färgtema">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
@@ -104,61 +104,24 @@
                     <span class="drop-zone__loaded badge badge--good">Bild laddad</span>
                     <input type="file" id="rightFileInput" accept="image/jpeg,image/jpg" hidden>
                 </div>
-                <div class="drop-zone" data-side="fourth">
-                    <span class="badge" data-label-target="fourth">D</span>
-                    <span class="drop-zone__title">Dra och släpp JPG</span>
-                    <span class="drop-zone__hint">eller klicka för att välja fil</span>
-                    <span class="drop-zone__loaded badge badge--good">Bild laddad</span>
-                    <input type="file" id="fourthFileInput" accept="image/jpeg,image/jpg" hidden>
-                </div>
             </div>
         </section>
 
-        <!-- SPLIT CONTROLS -->
-        <section class="card section" aria-label="Fördelning">
+        <!-- TEMPLATE -->
+        <section class="card section" aria-label="Mall">
             <div class="card__body">
-                <div id="splitReadout" class="split-readout" aria-live="polite">50% | 50%</div>
+                <div id="splitReadout" class="split-readout" aria-live="polite">Lika stora · 1 : 1</div>
+                <p class="description template-note">
+                    Proportioner och avdelare kommer från CP-Tjänsts fyra Photoshop-mallar och går inte att ändra här.
+                </p>
 
-                <div class="control-row" data-layout-show="two">
-                    <label class="label" for="splitSlider">Horisontell fördelning</label>
-                    <input type="range" id="splitSlider" class="range" min="0" max="100" value="50" aria-label="Justera horisontell fördelning mellan vänster och höger bild">
+                <div class="control-row" data-layout-show="lika vanster hoger">
                     <div class="center-actions">
                         <button type="button" id="swapButton" class="btn btn--outline btn--sm">Byt plats</button>
                     </div>
                 </div>
 
-                <!-- Divider positions. data-cut is "mode:axis:index" — which
-                     layout the slider belongs to, which axis it cuts, and its
-                     place along that axis. -->
-                <div class="control-row" data-layout-show="three">
-                    <label class="label">Balans tre bilder</label>
-                    <div class="control-grid">
-                        <input type="range" class="range" data-cut="three:v:0" min="10" max="80" value="33" aria-label="Justera första avdelaren">
-                        <input type="range" class="range" data-cut="three:v:1" min="20" max="90" value="67" aria-label="Justera andra avdelaren">
-                    </div>
-                    <p class="description">A och C styrs av reglagen. B fyller utrymmet mellan dem.</p>
-                </div>
-
-                <div class="control-row" data-layout-show="four">
-                    <label class="label">Balans fyra bilder</label>
-                    <div class="control-grid">
-                        <input type="range" class="range" data-cut="four:v:0" min="5" max="70" value="25" aria-label="Justera första avdelaren">
-                        <input type="range" class="range" data-cut="four:v:1" min="15" max="85" value="50" aria-label="Justera andra avdelaren">
-                        <input type="range" class="range" data-cut="four:v:2" min="30" max="95" value="75" aria-label="Justera tredje avdelaren">
-                    </div>
-                    <p class="description">Reglagen sätter de tre avdelarna. Bilderna fyller utrymmet mellan dem.</p>
-                </div>
-
-                <div class="control-row" data-layout-show="quad">
-                    <label class="label">Balans 2×2</label>
-                    <div class="control-grid">
-                        <input type="range" class="range" data-cut="quad:v:0" min="15" max="85" value="50" aria-label="Justera lodrät avdelare">
-                        <input type="range" class="range" data-cut="quad:h:0" min="15" max="85" value="50" aria-label="Justera vågrät avdelare">
-                    </div>
-                    <p class="description">Första reglaget flyttar den lodräta avdelaren, andra den vågräta. A och B ligger överst, C och D under.</p>
-                </div>
-
-                <div class="control-row" data-layout-show="three four quad">
+                <div class="control-row" data-layout-show="tre">
                     <label class="label" id="orderLabel">Ordning</label>
                     <p class="description">Dra en bild dit du vill ha den, eller markera den och använd piltangenterna.</p>
                     <ol class="order-strip" aria-labelledby="orderLabel">
@@ -181,13 +144,6 @@
                                     aria-label="Bild C. Flytta med vänster- och högerpil.">
                                 <canvas class="order-chip__thumb" data-thumb="right" width="112" height="63" aria-hidden="true"></canvas>
                                 <span class="order-chip__letter" data-label-target="right">C</span>
-                            </button>
-                        </li>
-                        <li class="order-chip" data-side="fourth" draggable="true">
-                            <button type="button" class="order-chip__grip" data-order-grip="fourth"
-                                    aria-label="Bild D. Flytta med vänster- och högerpil.">
-                                <canvas class="order-chip__thumb" data-thumb="fourth" width="112" height="63" aria-hidden="true"></canvas>
-                                <span class="order-chip__letter" data-label-target="fourth">D</span>
                             </button>
                         </li>
                     </ol>
@@ -226,16 +182,6 @@
                         </div>
                         <label class="label" for="rightZoom">Zoom</label>
                         <input type="range" id="rightZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
-                    </div>
-                </div>
-                <div class="card" data-side="fourth">
-                    <div class="card__body">
-                        <div class="tune-card__head">
-                            <span class="badge" data-label-target="fourth">D</span>
-                            <button type="button" class="btn btn--ghost btn--xs" data-reset="fourth">Återställ vy</button>
-                        </div>
-                        <label class="label" for="fourthZoom">Zoom</label>
-                        <input type="range" id="fourthZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma fjärde bilden">
                     </div>
                 </div>
             </div>
@@ -277,7 +223,7 @@
 
     <footer class="site-footer">
         <p>❤️ &amp; © CP-Tjänst/Jesper Sandström 2026</p>
-        <p class="footer-meta"><span class="version-stamp" id="versionStamp">v. 4.1</span></p>
+        <p class="footer-meta"><span class="version-stamp" id="versionStamp">v. 4.2</span></p>
     </footer>
 
     <script>
@@ -291,7 +237,7 @@
             var pad = function (n) { return String(n).padStart(2, '0'); };
             var stamp = d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate())
                 + '.' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-            el.textContent = 'v. 4.1 (' + stamp + ')';
+            el.textContent = 'v. 4.2 (' + stamp + ')';
         })();
     </script>
 
@@ -329,6 +275,6 @@
             sync();
         })();
     </script>
-    <script src="script.js?v=41ac5b2a"></script>
+    <script src="script.js?v=251126a3"></script>
 </body>
 </html>

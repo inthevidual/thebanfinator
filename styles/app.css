@@ -6,14 +6,15 @@
    The class names here are a contract with script.js. Do not rename without
    changing it: .drop-zone, .dragover, .canvas-frame, .label-overlay,
    .is-visible, .label-badge, .order-chip, .is-dragging, .is-drop-target,
-   .is-empty, .is-active, .is-muted, and body.layout-{two,three,four,quad}.
+   .is-empty, .is-active, .is-muted, and
+   body.layout-{lika,vanster,hoger,tre}.
    ========================================================================== */
 
 /* ── Layout mode visibility ───────────────────────────────────────────────────
-   With four layouts, per-mode classes stopped scaling. script.js now sets the
-   `hidden` attribute instead, which leaves a *shown* element with no display
-   declaration from the layout system at all — a `display: block` override would
-   silently un-centre .drop-zone, which is a flex column.
+   Per-mode display rules stopped scaling once there were four modes. script.js
+   sets the `hidden` attribute instead, which leaves a *shown* element with no
+   display declaration from the layout system at all — a `display: block`
+   override would silently un-centre .drop-zone, which is a flex column.
    ------------------------------------------------------------------------- */
 
 [hidden] { display: none !important; }
@@ -48,10 +49,9 @@
   }
 }
 
-/* Segmented control for 2 / 3 images. A single bordered track with the active
-   segment filled — flat, per §4.3, no shadow doing the hierarchy. */
-/* Always a 2x2 grid, at every width. Equal columns so the four labels line up
-   into a block rather than a ragged row. */
+/* Template picker. A single bordered track with the active segment filled —
+   flat, per §4.3, no shadow doing the hierarchy. Always a 2x2 grid, at every
+   width, so the four labels line up into a block rather than a ragged row. */
 .segmented {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -98,10 +98,8 @@
 }
 
 @media (min-width: 768px) {
-  .zone-grid,
-  body.layout-quad .zone-grid { grid-template-columns: repeat(2, 1fr); }
-  body.layout-three .zone-grid { grid-template-columns: repeat(3, 1fr); }
-  body.layout-four .zone-grid { grid-template-columns: repeat(4, 1fr); }
+  .zone-grid { grid-template-columns: repeat(2, 1fr); }
+  body.layout-tre .zone-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 .drop-zone {
@@ -151,10 +149,12 @@
 
 /* ── Split readout ────────────────────────────────────────────────────────── */
 
+/* Names the chosen template and its proportion. It reports what the template
+   is, it does not set it — there is nothing to set. */
 .split-readout {
   font-family: var(--font-head);
   font-variant-numeric: tabular-nums;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -171,20 +171,17 @@
   gap: 6px;
 }
 
-.control-row + .control-row {
+/* :not([hidden]) on both sides — otherwise a hidden first row still gives the
+   visible second one a rule and a top margin with nothing above it. */
+.control-row:not([hidden]) + .control-row:not([hidden]) {
   margin-top: 16px;
   border-top: 1px solid var(--color-border-secondary);
   padding-top: 14px; /* §4.2 divider above a field group */
 }
 
-.control-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-@media (min-width: 768px) {
-  .control-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.template-note {
+  text-align: center;
+  margin: 0 0 4px;
 }
 
 .center-actions {
@@ -280,10 +277,8 @@
 }
 
 @media (min-width: 768px) {
-  .tune-grid,
-  body.layout-quad .tune-grid { grid-template-columns: repeat(2, 1fr); }
-  body.layout-three .tune-grid { grid-template-columns: repeat(3, 1fr); }
-  body.layout-four .tune-grid { grid-template-columns: repeat(4, 1fr); }
+  .tune-grid { grid-template-columns: repeat(2, 1fr); }
+  body.layout-tre .tune-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 .tune-card__head {

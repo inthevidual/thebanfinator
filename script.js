@@ -1,17 +1,30 @@
-// The four image slots. `left`, `center` and `right` are historic names kept so
-// the DOM ids, data-side attributes and saved state stay put — treat all four as
+// The three image slots. `left`, `center` and `right` are historic names kept so
+// the DOM ids, data-side attributes and saved state stay put — treat all three as
 // plain identifiers. Position comes from LAYOUTS below, never from the name.
-const SLOTS = ['left', 'center', 'right', 'fourth'];
+const SLOTS = ['left', 'center', 'right'];
 
-// Every layout is a grid: `cols` columns by `rows` rows, filled in reading order
-// from `slots`. `cuts` names the adjustable divider positions, as percentages —
-// 'v' entries split columns, 'h' entries split rows.
+// The four Photoshop templates in the repository root are the authority for
+// every proportion on this page. Measured straight out of them, not eyeballed:
+// each file is 8192x4608 with full-height white "linje" layers 85px wide, and
+// the numbers below are those layers' left edges in canvas pixels.
+//
+//   splitmall_lika stora.psd    linje at 4054           panels 4054 / 4053
+//   splitmall1_ stor vanster    linje at 5411           panels 5411 / 2696
+//   splitmall2_stor hoger       linje at 2708           panels 2708 / 5399
+//   splitmall_ 3bilder          linje at 2677 and 5427  panels 2677 / 2665 / 2680
+//
+// Nothing here is adjustable. A template whose divider can be dragged is not a
+// template, and these four are what the desk is supposed to deliver.
+const TEMPLATE = { width: 8192, height: 4608, divider: 85 };
+
 const LAYOUTS = {
-    two:   { slots: ['left', 'right'],                     cols: 2, rows: 1, cuts: { v: [50] } },
-    three: { slots: ['left', 'center', 'right'],           cols: 3, rows: 1, cuts: { v: [33, 67] } },
-    four:  { slots: ['left', 'center', 'right', 'fourth'], cols: 4, rows: 1, cuts: { v: [25, 50, 75] } },
-    quad:  { slots: ['left', 'center', 'right', 'fourth'], cols: 2, rows: 2, cuts: { v: [50], h: [50] } }
+    lika:    { label: 'Lika stora',   ratio: '1 : 1',     slots: ['left', 'right'],           cuts: [4054] },
+    vanster: { label: 'Stor vänster', ratio: '2 : 1',     slots: ['left', 'right'],           cuts: [5411] },
+    hoger:   { label: 'Stor höger',   ratio: '1 : 2',     slots: ['left', 'right'],           cuts: [2708] },
+    tre:     { label: 'Tre bilder',   ratio: '1 : 1 : 1', slots: ['left', 'center', 'right'], cuts: [2677, 5427] }
 };
+
+const DEFAULT_LAYOUT = 'lika';
 
 const perSlot = (value) => Object.fromEntries(SLOTS.map((s) => [s, typeof value === 'function' ? value() : value]));
 
@@ -22,8 +35,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '4.1';
-        this.splitSlider = document.getElementById('splitSlider');
+        this.version = '4.2';
         this.splitReadout = document.getElementById('splitReadout');
         this.exportBtn = document.getElementById('exportBtn');
         this.bylineInput = document.getElementById('bylineInput');
@@ -45,22 +57,15 @@ class Banfinator {
         this.images = perSlot(null);
         this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
         this.bureauSuffixes = perSlot('');
-        this.labelPool = ['A', 'B', 'C', 'D'];
+        this.labelPool = ['A', 'B', 'C'];
         this.overlayLabels = {};
         this.transforms = perSlot(() => ({ scale: 1, offsetX: 0, offsetY: 0 }));
         this.bylineSources = perSlot('');
         this.colorProfiles = perSlot('');
         this.bylineDirty = false;
         this.dragState = null;
-        this.ratio = 0.5;
-        this.layoutMode = 'two';
-        // Divider positions per mode, as percentages, so switching modes and
-        // coming back does not lose an adjustment.
-        this.cuts = Object.fromEntries(Object.entries(LAYOUTS).map(
-            ([mode, def]) => [mode, { v: [...(def.cuts.v || [])], h: [...(def.cuts.h || [])] }]
-        ));
+        this.layoutMode = DEFAULT_LAYOUT;
         this.hoverSide = null;
-        this.dividerWidth = 10;
         this.renderCanvas.width = 3840;
         this.renderCanvas.height = 2160;
         this.previewCanvas.width = 3840;
@@ -108,21 +113,6 @@ class Banfinator {
     }
 
     bindEvents() {
-        this.splitSlider?.addEventListener('input', (e) => {
-            this.ratio = e.target.value / 100;
-            this.updateReadout();
-            this.draw();
-        });
-
-        // Divider sliders for three / four / quad. Each carries the mode it
-        // belongs to, the axis it cuts and its index within that axis.
-        document.querySelectorAll('[data-cut]').forEach((input) => {
-            input.addEventListener('input', (e) => {
-                const [mode, axis, index] = input.dataset.cut.split(':');
-                this.setCut(mode, axis, Number(index), parseFloat(e.target.value));
-            });
-        });
-
         this.layoutToggleButtons.forEach((btn) => {
             btn.addEventListener('click', () => this.setLayoutMode(btn.dataset.layoutMode));
         });
@@ -289,26 +279,11 @@ class Banfinator {
         await this.handleFileUpload(file, side, zone);
     }
 
+    /** Name the chosen template and its proportion. Both come from LAYOUTS. */
     updateReadout() {
         if (!this.splitReadout) return;
-        const mode = this.layoutMode;
-
-        if (mode === 'two') {
-            const leftPercent = Math.round(this.ratio * 100);
-            this.splitReadout.textContent = `${leftPercent}% | ${100 - leftPercent}%`;
-            return;
-        }
-
-        if (mode === 'quad') {
-            const [colA] = this.getBandPercents(this.cuts.quad.v);
-            const [rowA] = this.getBandPercents(this.cuts.quad.h);
-            this.splitReadout.textContent = `${colA}/${100 - colA}% × ${rowA}/${100 - rowA}%`;
-            return;
-        }
-
-        this.splitReadout.textContent = this.getBandPercents(this.cuts[mode].v)
-            .map((p) => `${p}%`)
-            .join(' | ');
+        const def = LAYOUTS[this.layoutMode];
+        this.splitReadout.textContent = `${def.label} · ${def.ratio}`;
     }
 
     setLayoutMode(mode) {
@@ -346,8 +321,6 @@ class Banfinator {
         });
 
         this.splitReadout?.setAttribute('aria-live', 'polite');
-        if (mode === 'two' && this.splitSlider) this.splitSlider.value = this.ratio * 100;
-        this.syncCutInputs();
         // Letters are positional, so a mode change re-letters every slot.
         this.updateLabelPills();
         this.updateBylineField();
@@ -357,43 +330,6 @@ class Banfinator {
     getActiveSides() {
         // A copy: callers reorder and splice this, and LAYOUTS is shared state.
         return [...LAYOUTS[this.layoutMode].slots];
-    }
-
-    /**
-     * Move one divider, keeping the cuts on that axis sorted and at least
-     * MIN_GAP apart. Neighbours are pushed rather than swapped, so dragging a
-     * middle divider to an end collapses the bands evenly instead of reordering
-     * the images.
-     */
-    setCut(mode, axis, index, value) {
-        const MIN_GAP = 10;
-        const list = this.cuts[mode]?.[axis];
-        if (!list || index >= list.length) return;
-
-        const lower = index === 0 ? 0 : list[index - 1] + MIN_GAP;
-        const upper = index === list.length - 1 ? 100 : list[index + 1] - MIN_GAP;
-        list[index] = Math.min(Math.max(value, lower), upper);
-
-        this.syncCutInputs();
-        this.updateReadout();
-        this.draw();
-    }
-
-    syncCutInputs() {
-        document.querySelectorAll('[data-cut]').forEach((input) => {
-            const [mode, axis, index] = input.dataset.cut.split(':');
-            const list = this.cuts[mode]?.[axis];
-            if (list) input.value = list[Number(index)];
-        });
-    }
-
-    /** Band sizes along one axis, in whole percent, summing to 100. */
-    getBandPercents(cuts) {
-        const edges = [0, ...cuts, 100];
-        const sizes = edges.slice(1).map((edge, i) => Math.round(edge - edges[i]));
-        // Push rounding error into the last band so the readout always totals 100.
-        sizes[sizes.length - 1] = 100 - sizes.slice(0, -1).reduce((a, b) => a + b, 0);
-        return sizes;
     }
 
     updateButtonState() {
@@ -557,12 +493,9 @@ class Banfinator {
 
             badge.textContent = this.labelFor(side);
             badge.style.left = `${offsetX + (region.x + region.width / 2) * scale}px`;
-            // Sit inside the region's top edge. In a single row that reads as
-            // sitting above the canvas, as before; in a 2x2 the bottom pair need
-            // their own badges inside the frame.
-            badge.style.top = region.y === 0
-                ? `${Math.max(6, offsetY - 8)}px`
-                : `${offsetY + region.y * scale + 8}px`;
+            // Every template is one row, so a badge always sits just above the
+            // canvas rather than over the picture.
+            badge.style.top = `${Math.max(6, offsetY - 8)}px`;
         });
     }
 
@@ -577,7 +510,7 @@ class Banfinator {
     }
 
     swapTwoImages() {
-        if (this.layoutMode !== 'two') return;
+        if (LAYOUTS[this.layoutMode].slots.length !== 2) return;
         ['images', 'bylineSources', 'transforms', 'bureauSuffixes', 'colorProfiles'].forEach((key) => {
             [this[key].left, this[key].right] = [this[key].right, this[key].left];
         });
@@ -651,16 +584,21 @@ class Banfinator {
      * collage never depends on what theme the page happened to be in; the preview
      * follows the page tokens so an empty slot does not sit as a black hole in a
      * cream layout.
+     *
+     * The divider is the one thing that does not follow the theme. It is #FFFFFF
+     * in all four templates and it is part of the output, so a themed preview
+     * divider would show a dark bar where the saved file has a white one.
      */
     getCanvasPalette(forExport) {
-        if (forExport) return { ground: '#1c1c1c', hatch: 'rgba(255, 255, 255, 0.05)', divider: '#ffffff' };
+        const divider = '#ffffff';
+        if (forExport) return { ground: '#1c1c1c', hatch: 'rgba(255, 255, 255, 0.05)', divider };
 
         const css = getComputedStyle(document.documentElement);
         const token = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
         return {
             ground: token('--color-background-tertiary', '#F4EBE2'),
             hatch: token('--color-border-primary', '#E5E2E1'),
-            divider: token('--color-surface-raised', '#ffffff')
+            divider
         };
     }
 
@@ -743,51 +681,35 @@ class Banfinator {
     }
 
     /**
-     * Slice one axis at the given cut percentages, leaving a divider-width gap at
-     * each cut. Returns the bands in order plus the divider positions.
+     * The regions and dividers of the active template, scaled to `width`.
+     *
+     * The template's own pixel coordinates are the only source: every edge is
+     * `templateUnits * width / TEMPLATE.width`, rounded once. Rounding the two
+     * sides of a divider independently and taking the difference is what keeps
+     * the bar the right thickness and leaves no seam — deriving it from a
+     * percentage and a separate divider constant does not.
      */
-    sliceAxis(total, cuts) {
-        const gaps = cuts.length;
-        const usable = total - this.dividerWidth * gaps;
-        const bands = [];
-        const dividers = [];
-        let prevPercent = 0;
-        let pos = 0;
-
-        cuts.forEach((cut) => {
-            const size = Math.round(((cut - prevPercent) / 100) * usable);
-            bands.push({ start: pos, size });
-            dividers.push(pos + size);
-            pos += size + this.dividerWidth;
-            prevPercent = cut;
-        });
-        // The last band takes the remainder, so rounding never leaves a seam.
-        bands.push({ start: pos, size: total - pos });
-
-        return { bands, dividers };
-    }
-
     getLayoutRegions(width = this.renderCanvas.width, height = this.renderCanvas.height) {
         const def = LAYOUTS[this.layoutMode];
-        const cuts = this.cuts[this.layoutMode];
+        const px = (units) => Math.round((units * width) / TEMPLATE.width);
 
-        // 'two' keeps its own single ratio so the existing slider stays authoritative.
-        const vCuts = this.layoutMode === 'two' ? [this.ratio * 100] : cuts.v;
-        const cols = this.sliceAxis(width, vCuts);
-        const rows = this.sliceAxis(height, cuts.h || []);
+        // [0, cut0, cut0+divider, cut1, cut1+divider, ..., width]: slot i runs
+        // from edges[2i] to edges[2i+1], and each divider fills the gap between.
+        const edges = [0];
+        def.cuts.forEach((cut) => edges.push(px(cut), px(cut + TEMPLATE.divider)));
+        edges.push(width);
 
         const regions = {};
         def.slots.forEach((side, i) => {
-            const col = cols.bands[i % def.cols];
-            const row = rows.bands[Math.floor(i / def.cols)];
-            regions[side] = { x: col.start, y: row.start, width: col.size, height: row.size };
+            regions[side] = { x: edges[i * 2], y: 0, width: edges[i * 2 + 1] - edges[i * 2], height };
         });
 
-        // Dividers as rects so a 2x2 can draw both axes.
-        const dividers = [
-            ...cols.dividers.map((x) => ({ x, y: 0, width: this.dividerWidth, height })),
-            ...rows.dividers.map((y) => ({ x: 0, y, width, height: this.dividerWidth }))
-        ];
+        const dividers = def.cuts.map((_, i) => ({
+            x: edges[i * 2 + 1],
+            y: 0,
+            width: edges[i * 2 + 2] - edges[i * 2 + 1],
+            height
+        }));
 
         return { regions, dividers };
     }
