@@ -44,7 +44,7 @@
     <link rel="preload" as="font" type="font/woff2" href="fonts/SvDEsterBlenda-Bold_2775ffc4.woff2" crossorigin>
 
     <link rel="stylesheet" href="styles/brand.css?v=2f060107">
-    <link rel="stylesheet" href="styles/app.css?v=3d92b8ce">
+    <link rel="stylesheet" href="styles/app.css?v=c7cda00e">
 </head>
 <body>
 
@@ -112,8 +112,43 @@
             <div class="card__body">
                 <div id="splitReadout" class="split-readout" aria-live="polite">Lika stora · 1 : 1</div>
                 <p class="description template-note">
-                    Proportioner och avdelare kommer från CP-Tjänsts fyra Photoshop-mallar och går inte att ändra här.
+                    Proportioner och avdelare kommer från CP-Tjänsts fyra Photoshop-mallar.
                 </p>
+
+                <!-- Free proportions are opt-in and stay opt-in: the button is a
+                     toggle, the warning appears with the sliders, and locking
+                     again snaps every divider back to the template. -->
+                <div class="control-row cut-lock">
+                    <div class="center-actions">
+                        <button type="button" id="unlockCuts" class="btn btn--outline btn--sm" aria-pressed="false"
+                                aria-controls="cutWarning cutControls">
+                            <svg class="warn-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18.4a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9.4v4.2"/><path d="M12 17.2h.01"/></svg>
+                            <span id="unlockCutsLabel">Justera proportioner</span>
+                        </button>
+                    </div>
+
+                    <p class="warning-note" id="cutWarning" role="note" hidden>
+                        <svg class="warn-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18.4a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9.4v4.2"/><path d="M12 17.2h.01"/></svg>
+                        <span>Justera proportioner på egen risk. SvD föreskriver fasta splitmallar, men det kan ju
+                        vara användbart att fuska ibland, t.ex. bokomslag bredvid porträtt.</span>
+                    </p>
+
+                    <div class="cut-controls" id="cutControls" hidden>
+                        <div class="cut-slider" data-cut="0">
+                            <label class="label" for="cutSlider0">Avdelare 1</label>
+                            <input type="range" id="cutSlider0" class="range" step="1" value="4054"
+                                   aria-label="Flytta första avdelaren">
+                        </div>
+                        <div class="cut-slider" data-cut="1">
+                            <label class="label" for="cutSlider1">Avdelare 2</label>
+                            <input type="range" id="cutSlider1" class="range" step="1" value="5427"
+                                   aria-label="Flytta andra avdelaren">
+                        </div>
+                        <div class="center-actions">
+                            <button type="button" id="resetCutsBtn" class="btn btn--ghost btn--sm">Återställ mallens proportioner</button>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="control-row" data-layout-show="lika vanster hoger">
                     <div class="center-actions">
@@ -275,6 +310,6 @@
             sync();
         })();
     </script>
-    <script src="script.js?v=251126a3"></script>
+    <script src="script.js?v=360d09fb"></script>
 </body>
 </html>

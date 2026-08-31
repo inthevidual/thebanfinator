@@ -184,6 +184,54 @@
   margin: 0 0 4px;
 }
 
+/* ── Free proportions ─────────────────────────────────────────────────────────
+   Off by default, and it has to look like an exception when it is on. The
+   triangle carries --color-critical in both places it appears; the note is a
+   tinted panel rather than bare text so it cannot be skimmed past.
+   ------------------------------------------------------------------------- */
+
+.warn-triangle {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--color-critical);
+}
+
+#unlockCuts.is-active {
+  border-color: var(--color-critical);
+  color: var(--color-critical);
+}
+
+.warning-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-critical) 10%, transparent);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* The triangle sits on the first line of the text, not on the box. */
+.warning-note .warn-triangle { margin-top: 1px; }
+
+.cut-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.cut-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .center-actions {
   display: flex;
   justify-content: center;

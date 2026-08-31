@@ -13,9 +13,15 @@ const SLOTS = ['left', 'center', 'right'];
 //   splitmall2_stor hoger       linje at 2708           panels 2708 / 5399
 //   splitmall_ 3bilder          linje at 2677 and 5427  panels 2677 / 2665 / 2680
 //
-// Nothing here is adjustable. A template whose divider can be dragged is not a
-// template, and these four are what the desk is supposed to deliver.
+// These four are what the desk is supposed to deliver, so they are the default
+// and the page opens locked to them. The sliders behind "Justera proportioner"
+// move `cuts` off the template on purpose — see MIN_PANEL below.
 const TEMPLATE = { width: 8192, height: 4608, divider: 85 };
+
+// The narrowest panel a free split may leave, in template units: 512 of 8192,
+// about 6%. Low enough for the case this exists for — a book cover beside a
+// portrait — and high enough that a panel is still a picture, not a stripe.
+const MIN_PANEL = 512;
 
 const LAYOUTS = {
     lika:    { label: 'Lika stora',   ratio: '1 : 1',     slots: ['left', 'right'],           cuts: [4054] },
@@ -37,6 +43,13 @@ class Banfinator {
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
         this.version = '4.2';
         this.splitReadout = document.getElementById('splitReadout');
+        this.unlockCutsButton = document.getElementById('unlockCuts');
+        this.unlockCutsLabel = document.getElementById('unlockCutsLabel');
+        this.cutWarning = document.getElementById('cutWarning');
+        this.cutControls = document.getElementById('cutControls');
+        this.resetCutsButton = document.getElementById('resetCutsBtn');
+        this.cutSliders = [...document.querySelectorAll('.cut-slider')];
+        this.templateNote = document.querySelector('.template-note');
         this.exportBtn = document.getElementById('exportBtn');
         this.bylineInput = document.getElementById('bylineInput');
         this.suffixInfoBox = document.getElementById('suffixInfo');
@@ -65,6 +78,13 @@ class Banfinator {
         this.bylineDirty = false;
         this.dragState = null;
         this.layoutMode = DEFAULT_LAYOUT;
+        // Free divider positions, in template units, one list per template.
+        // Seeded from the template so unlocking starts exactly where the locked
+        // layout was, and kept per mode so switching away and back is lossless.
+        this.cutsUnlocked = false;
+        this.cuts = Object.fromEntries(
+            Object.entries(LAYOUTS).map(([mode, def]) => [mode, [...def.cuts]])
+        );
         this.hoverSide = null;
         this.renderCanvas.width = 3840;
         this.renderCanvas.height = 2160;
@@ -74,6 +94,7 @@ class Banfinator {
         this.labelOverlay = this.createLabelOverlay();
         this.bindEvents();
         this.applyLayoutMode(this.layoutMode);
+        this.applyCutLock();
         this.resetMetadataInputs();
         this.updateReadout();
         this.updateButtonState();
@@ -113,6 +134,16 @@ class Banfinator {
     }
 
     bindEvents() {
+        this.unlockCutsButton?.addEventListener('click', () => this.setCutsUnlocked(!this.cutsUnlocked));
+        this.resetCutsButton?.addEventListener('click', () => this.resetCuts());
+
+        this.cutSliders.forEach((row) => {
+            const index = Number(row.dataset.cut);
+            row.querySelector('input')?.addEventListener('input', (e) => {
+                this.setCut(index, parseFloat(e.target.value));
+            });
+        });
+
         this.layoutToggleButtons.forEach((btn) => {
             btn.addEventListener('click', () => this.setLayoutMode(btn.dataset.layoutMode));
         });
@@ -279,11 +310,113 @@ class Banfinator {
         await this.handleFileUpload(file, side, zone);
     }
 
-    /** Name the chosen template and its proportion. Both come from LAYOUTS. */
+    /**
+     * Locked: name the template and its proportion, both from LAYOUTS. Unlocked:
+     * say so, and give the panel widths as whole percent of the picture area —
+     * the same basis as the template ratios, so 2 : 1 still reads 67 % | 33 %.
+     */
     updateReadout() {
         if (!this.splitReadout) return;
         const def = LAYOUTS[this.layoutMode];
-        this.splitReadout.textContent = `${def.label} · ${def.ratio}`;
+
+        if (!this.cutsUnlocked) {
+            this.splitReadout.textContent = `${def.label} · ${def.ratio}`;
+            return;
+        }
+
+        const widths = this.panelWidths();
+        const total = widths.reduce((a, b) => a + b, 0);
+        const percents = widths.map((w) => Math.round((w / total) * 100));
+        // Push the rounding error into the last panel so the row totals 100.
+        percents[percents.length - 1] = 100 - percents.slice(0, -1).reduce((a, b) => a + b, 0);
+        this.splitReadout.textContent = `Fri fördelning · ${percents.map((v) => `${v} %`).join(' | ')}`;
+    }
+
+    /** The divider positions in force: the template's, or the free ones. */
+    activeCuts() {
+        return this.cutsUnlocked ? this.cuts[this.layoutMode] : LAYOUTS[this.layoutMode].cuts;
+    }
+
+    /** Panel widths in template units, from the cuts in force. */
+    panelWidths() {
+        const cuts = this.activeCuts();
+        const edges = [0];
+        cuts.forEach((cut) => edges.push(cut, cut + TEMPLATE.divider));
+        edges.push(TEMPLATE.width);
+        return Array.from({ length: cuts.length + 1 }, (_, i) => edges[i * 2 + 1] - edges[i * 2]);
+    }
+
+    setCutsUnlocked(on) {
+        this.cutsUnlocked = on;
+        this.applyCutLock();
+        this.updateReadout();
+        this.draw();
+    }
+
+    /** Back to the template, for the current mode only. */
+    resetCuts() {
+        this.cuts[this.layoutMode] = [...LAYOUTS[this.layoutMode].cuts];
+        this.syncCutInputs();
+        this.updateReadout();
+        this.draw();
+    }
+
+    /**
+     * Show or hide the free-proportion controls. The warning rides with the
+     * sliders rather than with the button: it describes what adjusting costs,
+     * and there is nothing to warn about until adjusting is possible.
+     */
+    applyCutLock() {
+        const on = this.cutsUnlocked;
+        // The note and the warning are mutually exclusive: one says the
+        // proportions come from the templates, the other that they no longer do.
+        if (this.templateNote) this.templateNote.hidden = on;
+        if (this.cutWarning) this.cutWarning.hidden = !on;
+        if (this.cutControls) this.cutControls.hidden = !on;
+        if (this.unlockCutsLabel) {
+            this.unlockCutsLabel.textContent = on ? 'Lås till mallen' : 'Justera proportioner';
+        }
+        this.unlockCutsButton?.setAttribute('aria-pressed', String(on));
+        this.unlockCutsButton?.classList.toggle('is-active', on);
+        this.syncCutInputs();
+    }
+
+    /**
+     * Move one divider. Bounds keep the dividers in order and every panel at
+     * least MIN_PANEL wide, so a slider can never collapse a neighbour or push
+     * two bars past each other.
+     */
+    setCut(index, value) {
+        const cuts = this.cuts[this.layoutMode];
+        if (!cuts || index >= cuts.length) return;
+        const { min, max } = this.cutBounds(index);
+        cuts[index] = Math.round(Math.min(Math.max(value, min), max));
+        this.syncCutInputs();
+        this.updateReadout();
+        this.draw();
+    }
+
+    cutBounds(index) {
+        const cuts = this.cuts[this.layoutMode];
+        const prev = index === 0 ? 0 : cuts[index - 1] + TEMPLATE.divider;
+        const next = index === cuts.length - 1 ? TEMPLATE.width : cuts[index + 1];
+        return { min: prev + MIN_PANEL, max: next - TEMPLATE.divider - MIN_PANEL };
+    }
+
+    /** One slider per divider in the current template; the rest stay hidden. */
+    syncCutInputs() {
+        const cuts = this.cuts[this.layoutMode];
+        this.cutSliders?.forEach((row) => {
+            const index = Number(row.dataset.cut);
+            row.hidden = index >= cuts.length;
+            if (row.hidden) return;
+            const input = row.querySelector('input');
+            if (!input) return;
+            const { min, max } = this.cutBounds(index);
+            input.min = min;
+            input.max = max;
+            input.value = cuts[index];
+        });
     }
 
     setLayoutMode(mode) {
@@ -321,6 +454,8 @@ class Banfinator {
         });
 
         this.splitReadout?.setAttribute('aria-live', 'polite');
+        // A new template can have a different number of dividers.
+        this.syncCutInputs();
         // Letters are positional, so a mode change re-letters every slot.
         this.updateLabelPills();
         this.updateBylineField();
@@ -691,12 +826,13 @@ class Banfinator {
      */
     getLayoutRegions(width = this.renderCanvas.width, height = this.renderCanvas.height) {
         const def = LAYOUTS[this.layoutMode];
+        const cuts = this.activeCuts();
         const px = (units) => Math.round((units * width) / TEMPLATE.width);
 
         // [0, cut0, cut0+divider, cut1, cut1+divider, ..., width]: slot i runs
         // from edges[2i] to edges[2i+1], and each divider fills the gap between.
         const edges = [0];
-        def.cuts.forEach((cut) => edges.push(px(cut), px(cut + TEMPLATE.divider)));
+        cuts.forEach((cut) => edges.push(px(cut), px(cut + TEMPLATE.divider)));
         edges.push(width);
 
         const regions = {};
@@ -704,7 +840,7 @@ class Banfinator {
             regions[side] = { x: edges[i * 2], y: 0, width: edges[i * 2 + 1] - edges[i * 2], height };
         });
 
-        const dividers = def.cuts.map((_, i) => ({
+        const dividers = cuts.map((_, i) => ({
             x: edges[i * 2 + 1],
             y: 0,
             width: edges[i * 2 + 2] - edges[i * 2 + 1],
