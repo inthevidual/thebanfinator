@@ -44,7 +44,7 @@
     <link rel="preload" as="font" type="font/woff2" href="fonts/SvDEsterBlenda-Bold_2775ffc4.woff2" crossorigin>
 
     <link rel="stylesheet" href="styles/brand.css?v=2f060107">
-    <link rel="stylesheet" href="styles/app.css?v=c7cda00e">
+    <link rel="stylesheet" href="styles/app.css?v=2b7ec79b">
 </head>
 <body>
 
@@ -193,7 +193,10 @@
                     <div class="card__body">
                         <div class="tune-card__head">
                             <span class="badge" data-label-target="left">A</span>
-                            <button type="button" class="btn btn--ghost btn--xs" data-reset="left">Återställ vy</button>
+                            <div class="tune-card__actions">
+                                <button type="button" class="btn btn--ghost btn--xs flip-btn" data-flip="left" aria-pressed="false" title="Spegelvänd horisontellt" aria-label="Spegelvänd vänster bild horisontellt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M9 7 3 17h6Z"/><path d="M15 7l6 10h-6Z"/></svg><span>Spegla</span></button>
+                                <button type="button" class="btn btn--ghost btn--xs" data-reset="left">Återställ vy</button>
+                            </div>
                         </div>
                         <label class="label" for="leftZoom">Zoom</label>
                         <input type="range" id="leftZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma vänster bild">
@@ -203,7 +206,10 @@
                     <div class="card__body">
                         <div class="tune-card__head">
                             <span class="badge" data-label-target="center">B</span>
-                            <button type="button" class="btn btn--ghost btn--xs" data-reset="center">Återställ vy</button>
+                            <div class="tune-card__actions">
+                                <button type="button" class="btn btn--ghost btn--xs flip-btn" data-flip="center" aria-pressed="false" title="Spegelvänd horisontellt" aria-label="Spegelvänd mittenbild horisontellt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M9 7 3 17h6Z"/><path d="M15 7l6 10h-6Z"/></svg><span>Spegla</span></button>
+                                <button type="button" class="btn btn--ghost btn--xs" data-reset="center">Återställ vy</button>
+                            </div>
                         </div>
                         <label class="label" for="centerZoom">Zoom</label>
                         <input type="range" id="centerZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma mittenbild">
@@ -213,7 +219,10 @@
                     <div class="card__body">
                         <div class="tune-card__head">
                             <span class="badge" data-label-target="right">C</span>
-                            <button type="button" class="btn btn--ghost btn--xs" data-reset="right">Återställ vy</button>
+                            <div class="tune-card__actions">
+                                <button type="button" class="btn btn--ghost btn--xs flip-btn" data-flip="right" aria-pressed="false" title="Spegelvänd horisontellt" aria-label="Spegelvänd höger bild horisontellt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M9 7 3 17h6Z"/><path d="M15 7l6 10h-6Z"/></svg><span>Spegla</span></button>
+                                <button type="button" class="btn btn--ghost btn--xs" data-reset="right">Återställ vy</button>
+                            </div>
                         </div>
                         <label class="label" for="rightZoom">Zoom</label>
                         <input type="range" id="rightZoom" class="range" min="1" max="3" step="0.01" value="1" aria-label="Zooma höger bild">
@@ -258,7 +267,7 @@
 
     <footer class="site-footer">
         <p>❤️ &amp; © CP-Tjänst/Jesper Sandström 2026</p>
-        <p class="footer-meta"><span class="version-stamp" id="versionStamp">v. 4.2</span></p>
+        <p class="footer-meta"><span class="version-stamp" id="versionStamp">v. 4.3</span></p>
     </footer>
 
     <script>
@@ -272,7 +281,7 @@
             var pad = function (n) { return String(n).padStart(2, '0'); };
             var stamp = d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate())
                 + '.' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-            el.textContent = 'v. 4.2 (' + stamp + ')';
+            el.textContent = 'v. 4.3 (' + stamp + ')';
         })();
     </script>
 
@@ -310,6 +319,6 @@
             sync();
         })();
     </script>
-    <script src="script.js?v=360d09fb"></script>
+    <script src="script.js?v=b8d0e4e6"></script>
 </body>
 </html>

@@ -41,7 +41,7 @@ class Banfinator {
         this.previewCtx = this.previewCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.previewCanvas.getContext('2d');
         this.renderCanvas = this.createRenderSurface();
         this.renderCtx = this.renderCanvas.getContext('2d', { colorSpace: 'srgb' }) || this.renderCanvas.getContext('2d');
-        this.version = '4.2';
+        this.version = '4.3';
         this.splitReadout = document.getElementById('splitReadout');
         this.unlockCutsButton = document.getElementById('unlockCuts');
         this.unlockCutsLabel = document.getElementById('unlockCutsLabel');
@@ -60,19 +60,21 @@ class Banfinator {
         this.labelTargets = perSlot();
         this.zoomInputs = perSlot();
         this.resetButtons = perSlot();
+        this.flipButtons = perSlot();
         SLOTS.forEach((side) => {
             // Several elements carry a slot's letter — the drop zone, the tune
             // card and the reorder row — so collect all of them, not the first.
             this.labelTargets[side] = [...document.querySelectorAll(`[data-label-target="${side}"]`)];
             this.zoomInputs[side] = document.getElementById(`${side}Zoom`);
             this.resetButtons[side] = document.querySelector(`[data-reset="${side}"]`);
+            this.flipButtons[side] = document.querySelector(`[data-flip="${side}"]`);
         });
         this.images = perSlot(null);
         this.bureauRegex = /\/(TT|AFP|NTB|AP)\s*$/i;
         this.bureauSuffixes = perSlot('');
         this.labelPool = ['A', 'B', 'C'];
         this.overlayLabels = {};
-        this.transforms = perSlot(() => ({ scale: 1, offsetX: 0, offsetY: 0 }));
+        this.transforms = perSlot(() => ({ scale: 1, offsetX: 0, offsetY: 0, flipped: false }));
         this.bylineSources = perSlot('');
         this.colorProfiles = perSlot('');
         this.bylineDirty = false;
@@ -172,6 +174,10 @@ class Banfinator {
             btn?.addEventListener('click', () => this.resetView(side));
         });
 
+        Object.entries(this.flipButtons).forEach(([side, btn]) => {
+            btn?.addEventListener('click', () => this.toggleFlip(side));
+        });
+
         window.addEventListener('resize', () => this.updateLabelOverlayPositions());
 
         // The preview's empty state and drop outline are drawn from CSS tokens,
@@ -216,7 +222,7 @@ class Banfinator {
         Object.keys(this.images).forEach((side) => {
             this.images[side]?.close?.();
             this.images[side] = null;
-            this.transforms[side] = { scale: 1, offsetX: 0, offsetY: 0 };
+            this.transforms[side] = { scale: 1, offsetX: 0, offsetY: 0, flipped: false };
             this.bylineSources[side] = '';
             this.bureauSuffixes[side] = '';
             this.colorProfiles[side] = '';
@@ -581,7 +587,13 @@ class Banfinator {
             const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
             const w = img.width * scale;
             const h = img.height * scale;
+            ctx.save();
+            if (this.transforms[side]?.flipped) {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
             ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+            ctx.restore();
         });
     }
 
@@ -600,6 +612,9 @@ class Banfinator {
             const letter = this.labelFor(side) || '–';
             els.forEach((el) => { el.textContent = letter; });
         });
+        // Flip state travels with the image on swap and reorder, so the
+        // buttons are re-read from the slots here, alongside the letters.
+        SLOTS.forEach((side) => this.syncFlipButton(side));
         this.updateOrderThumbs();
         this.updateLabelOverlayPositions();
     }
@@ -788,7 +803,15 @@ class Banfinator {
         ctx.beginPath();
         ctx.rect(region.x, region.y, region.width, region.height);
         ctx.clip();
-        ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
+        if (this.transforms[side].flipped) {
+            // Mirror inside the same rectangle, so the crop box, the pan clamp
+            // and the wheel-zoom anchor all work unchanged.
+            ctx.translate(dx + metrics.drawWidth, dy);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img, 0, 0, metrics.drawWidth, metrics.drawHeight);
+        } else {
+            ctx.drawImage(img, dx, dy, metrics.drawWidth, metrics.drawHeight);
+        }
         ctx.restore();
     }
 
@@ -1362,13 +1385,31 @@ class Banfinator {
     }
 
     resetView(side, { silent = false } = {}) {
-        this.transforms[side] = { scale: 1, offsetX: 0, offsetY: 0 };
+        this.transforms[side] = { scale: 1, offsetX: 0, offsetY: 0, flipped: false };
         if (this.zoomInputs[side]) {
             this.zoomInputs[side].value = 1;
         }
+        this.syncFlipButton(side);
         if (!silent) {
+            this.updateOrderThumbs();
             this.draw();
         }
+    }
+
+    toggleFlip(side) {
+        if (!this.images[side]) return;
+        this.transforms[side].flipped = !this.transforms[side].flipped;
+        this.syncFlipButton(side);
+        this.updateOrderThumbs();
+        this.draw();
+    }
+
+    syncFlipButton(side) {
+        const btn = this.flipButtons?.[side];
+        if (!btn) return;
+        const flipped = !!this.transforms[side]?.flipped;
+        btn.setAttribute('aria-pressed', String(flipped));
+        btn.classList.toggle('is-active', flipped);
     }
 
     startDrag(event) {
